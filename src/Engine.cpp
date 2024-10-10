@@ -1,15 +1,12 @@
 #include "Engine.h"
+#include "Utils.h"
 
 #include <cassert>
 #include <iostream>
 
-#include <chrono>
-#include <thread>
-
 namespace grass
 {
     Engine* loadedEngine = nullptr;
-
     Engine& Engine::Get() { return *loadedEngine; }
 
     void Engine::init()
@@ -20,11 +17,25 @@ namespace grass
         initWindow();
         initWebgpu();
         configSurface();
+        createTestBuffer();
+        createPipeline();
     }
+
+
+    void Engine::initWindow()
+    {
+        assert(glfwInit() && "Could not initialize GLFW!");
+
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Grass renderer", nullptr, nullptr);
+        assert(window && "Could not get window from GLFW!");
+    }
+
 
     void Engine::initWebgpu()
     {
-        wgpu::InstanceDescriptor instanceDesc = {};
+        wgpu::InstanceDescriptor instanceDesc;
         instanceDesc.features.timedWaitAnyEnable = true;
         wgpu::Instance instance = wgpu::CreateInstance(&instanceDesc);
         assert(instance && "Could not initialize WebGPU!");
@@ -58,15 +69,40 @@ namespace grass
             },
             &chosenAdapter
         );
-        instance.WaitAny(adapterFuture, 1000000000);
+        instance.WaitAny(adapterFuture, UINT64_MAX);
         assert(chosenAdapter && "Could not request the adapter!");
 
-        wgpu::DeviceDescriptor deviceDesc = {};
-        deviceDesc.label = "Grass device";
+
+        // Dawn error toggle
+        const char* toggles[] = {
+            "enable_immediate_error_handling"
+        };
+        wgpu::DawnTogglesDescriptor dawnTogglesDesc;
+        dawnTogglesDesc.disabledToggleCount = 0;
+        dawnTogglesDesc.enabledToggleCount = 1;
+        dawnTogglesDesc.enabledToggles = toggles;
+
+
+
+        wgpu::DeviceDescriptor deviceDesc;
+        deviceDesc.label = "Grass renderer device";
         deviceDesc.requiredFeatureCount = 0;
         deviceDesc.requiredLimits = nullptr;
-        deviceDesc.defaultQueue.nextInChain = nullptr;
-        deviceDesc.defaultQueue.label = "Default queue";
+        deviceDesc.nextInChain = &dawnTogglesDesc;
+        deviceDesc.SetDeviceLostCallback(
+            wgpu::CallbackMode::AllowSpontaneous,
+            [](const wgpu::Device& device, wgpu::DeviceLostReason reason, const char* message) {
+                fprintf(stderr, "Device lost: reason: %d\n", reason);
+                if (message) fprintf(stderr, "message: %s\n\n", message);
+            }
+        );
+        deviceDesc.SetUncapturedErrorCallback(
+            [](const wgpu::Device& device, wgpu::ErrorType type, const char* message) {
+                fprintf(stderr, "Uncaptured device error: type: %d\n", type);
+                if (message) fprintf(stderr, "message: %s\n\n", message);
+            }
+        );
+
 
         wgpu::Future deviceFuture = chosenAdapter.RequestDevice(
             &deviceDesc,
@@ -74,10 +110,12 @@ namespace grass
             [](wgpu::RequestDeviceStatus status, wgpu::Device device,
                const char* message, wgpu::Device* userdata)
             {
-                if (status != wgpu::RequestDeviceStatus::Success) {
+                if (status != wgpu::RequestDeviceStatus::Success)
+                {
                     fprintf(stderr, "Failed to request device: %d\n",
                             status);
-                    if (message) {
+                    if (message)
+                    {
                         fprintf(stderr, "Message: %s\n", message);
                     }
                     return;
@@ -97,15 +135,6 @@ namespace grass
         assert(queue && "Could not get queue from device!");
     }
 
-    void Engine::initWindow()
-    {
-        assert(glfwInit() && "Could not initialize GLFW!");
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Grass renderer", nullptr, nullptr);
-        assert(window && "Could not get window from GLFW!");
-    }
 
     void Engine::configSurface()
     {
@@ -120,6 +149,60 @@ namespace grass
         };
         surface.Configure(&config);
     }
+
+
+    void Engine::createTestBuffer()
+    {
+        std::vector<float> vertices = {
+            -0.5, -0.5,
+            0.5, -0.5,
+            0.0, 0.5
+        };
+        wgpu::BufferDescriptor bufferDesc {
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex,
+            .mappedAtCreation = false,
+        };
+        bufferDesc.size = vertices.size() * sizeof(float);
+        testBuffer = device.CreateBuffer(&bufferDesc);
+        queue.WriteBuffer(testBuffer, 0, vertices.data(), bufferDesc.size);
+    }
+
+
+    void Engine::createPipeline()
+    {
+        wgpu::ShaderModule simpleModule = getShaderModule(device, "../shaders/simple_triangle.wgsl", "Triangle Module");
+
+
+        wgpu::VertexAttribute attrib{
+            .format = wgpu::VertexFormat::Float32x2,
+            .shaderLocation = 0,
+        };
+        attrib.offset = 0;
+        wgpu::VertexBufferLayout vertLayout;
+        vertLayout.stepMode = wgpu::VertexStepMode::Vertex;
+        vertLayout.arrayStride = 2 * sizeof(float);
+        vertLayout.attributeCount = 1;
+        vertLayout.attributes = &attrib;
+
+        wgpu::RenderPipelineDescriptor pipelineDesc;
+        pipelineDesc.vertex.module = simpleModule;
+        pipelineDesc.vertex.bufferCount = 1;
+        pipelineDesc.vertex.buffers = &vertLayout;
+
+        wgpu::ColorTargetState colorTarget;
+        colorTarget.format = surfaceFormat;
+
+        wgpu::FragmentState fragmentState;
+        fragmentState.module = simpleModule;
+        fragmentState.targetCount = 1;
+        fragmentState.targets = &colorTarget;
+        pipelineDesc.fragment = &fragmentState;
+
+        pipelineDesc.depthStencil = nullptr;
+
+        simplePipeline = device.CreateRenderPipeline(&pipelineDesc);
+    }
+
 
     wgpu::TextureView Engine::getNextSurfaceTextureView()
     {
@@ -145,6 +228,7 @@ namespace grass
         return surfaceTexture.texture.CreateView(&viewDescriptor);
     }
 
+
     void Engine::draw()
     {
         // Get texture view to draw on, from the surface
@@ -153,9 +237,7 @@ namespace grass
 
 
         // Create command encoder
-        wgpu::CommandEncoderDescriptor encoderDesc = {
-            .nextInChain = nullptr
-        };
+        wgpu::CommandEncoderDescriptor encoderDesc = {};
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
 
 
@@ -173,6 +255,9 @@ namespace grass
             .colorAttachments = &renderPassColorAttachment,
         };
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
+        pass.SetPipeline(simplePipeline);
+        pass.SetVertexBuffer(0, testBuffer, 0, testBuffer.GetSize());
+        pass.Draw(3, 1, 0, 0);
         pass.End();
 
 

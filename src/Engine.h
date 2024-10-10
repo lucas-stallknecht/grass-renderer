@@ -4,6 +4,7 @@
 #include <webgpu/webgpu_cpp.h>
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu_glfw.h>
+#include <dawn/native/DawnNative.h>
 
 
 
@@ -26,6 +27,8 @@ namespace grass
         void initWebgpu();
         void initWindow();
         void configSurface();
+        void createTestBuffer();
+        void createPipeline();
         wgpu::TextureView getNextSurfaceTextureView();
         void draw();
 
@@ -33,6 +36,8 @@ namespace grass
         wgpu::Queue queue;
         wgpu::Surface surface;
         wgpu::TextureFormat surfaceFormat;
+        wgpu::Buffer testBuffer;
+        wgpu::RenderPipeline simplePipeline;
 
         GLFWwindow* window;
         uint32_t frameNmber = 0;
