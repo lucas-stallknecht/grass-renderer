@@ -6,6 +6,7 @@
 #include <webgpu/webgpu_glfw.h>
 #include <dawn/native/DawnNative.h>
 
+#include "Camera.h"
 
 
 namespace grass
@@ -27,8 +28,10 @@ namespace grass
         void initWebgpu();
         void initWindow();
         void configSurface();
-        void createTestBuffer();
-        void createPipeline();
+        void initVertexBuffer();
+        void initUniformBuffer();
+        void initPipeline();
+        void initDepthTextureView();
         wgpu::TextureView getNextSurfaceTextureView();
         void draw();
 
@@ -36,10 +39,15 @@ namespace grass
         wgpu::Queue queue;
         wgpu::Surface surface;
         wgpu::TextureFormat surfaceFormat;
-        wgpu::Buffer testBuffer;
-        wgpu::RenderPipeline simplePipeline;
+
+        wgpu::Buffer vertexBuffer;
+        wgpu::Buffer uniformBuffer;
+        wgpu::RenderPipeline grassPipeline;
+        wgpu::BindGroup grassBindGroup;
+        wgpu::TextureView depthView;
 
         GLFWwindow* window;
+        Camera camera{60.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNmber = 0;
 
 

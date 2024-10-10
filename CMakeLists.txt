@@ -29,7 +29,8 @@ file(GLOB_RECURSE SOURCES
         "${SOURCE_DIR}/*.c"
 )
 
-add_executable(App main.cpp ${SOURCES})
+add_executable(App main.cpp ${SOURCES}
+        src/Camera.h)
 
 set_target_properties(App PROPERTIES
         CXX_STANDARD 20
@@ -51,6 +52,8 @@ function(target_copy_webgpu_binaries Target)
             "Copying '$<TARGET_FILE_DIR:webgpu_dawn>/$<TARGET_FILE_NAME:webgpu_dawn>' to '$<TARGET_FILE_DIR:${Target}>'..."
     )
 endfunction()
+
+include_directories(App ${LIBS_DIR})
 
 target_link_libraries(App PRIVATE dawn::webgpu_dawn glfw webgpu_glfw)
 target_copy_webgpu_binaries(App)

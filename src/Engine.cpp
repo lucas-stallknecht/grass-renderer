@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <glm/glm.hpp>
 
 namespace grass
 {
@@ -17,8 +18,10 @@ namespace grass
         initWindow();
         initWebgpu();
         configSurface();
-        createTestBuffer();
-        createPipeline();
+        initVertexBuffer();
+        initUniformBuffer();
+        initPipeline();
+        initDepthTextureView();
     }
 
 
@@ -81,7 +84,6 @@ namespace grass
         dawnTogglesDesc.disabledToggleCount = 0;
         dawnTogglesDesc.enabledToggleCount = 1;
         dawnTogglesDesc.enabledToggles = toggles;
-
 
 
         wgpu::DeviceDescriptor deviceDesc;
@@ -151,56 +153,151 @@ namespace grass
     }
 
 
-    void Engine::createTestBuffer()
+    void Engine::initVertexBuffer()
     {
         std::vector<float> vertices = {
-            -0.5, -0.5,
-            0.5, -0.5,
-            0.0, 0.5
+            // Base (Square) - 2 triangles (Normal: 0, -1, 0)
+            // Triangle 1
+            -0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 0.0f, // Bottom-left
+             0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 0.0f, // Bottom-right
+             0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 1.0f, // Top-right
+
+            // Triangle 2
+            -0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 0.0f, // Bottom-left
+             0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 1.0f, // Top-right
+            -0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 1.0f, // Top-left
+
+            // Sides - 4 triangular faces
+            // Front Face (Normal: 0, 0.707f, 0.707f)
+            -0.5f, 0.0f,  0.5f,   0.0f,  0.707f,  0.707f,  0.0f, 0.0f, // Bottom-left
+             0.5f, 0.0f,  0.5f,   0.0f,  0.707f,  0.707f,  1.0f, 0.0f, // Bottom-right
+             0.0f, 1.0f,  0.0f,   0.0f,  0.707f,  0.707f,  0.5f, 1.0f, // Apex
+
+            // Right Face (Normal: 0.707f, 0.707f, 0.0f)
+             0.5f, 0.0f,  0.5f,   0.707f,  0.707f,  0.0f,   0.0f, 0.0f, // Bottom-left
+             0.5f, 0.0f, -0.5f,   0.707f,  0.707f,  0.0f,   1.0f, 0.0f, // Bottom-right
+             0.0f, 1.0f,  0.0f,   0.707f,  0.707f,  0.0f,   0.5f, 1.0f, // Apex
+
+            // Back Face (Normal: 0.0f, 0.707f, -0.707f)
+             0.5f, 0.0f, -0.5f,   0.0f,  0.707f, -0.707f,  0.0f, 0.0f, // Bottom-left
+            -0.5f, 0.0f, -0.5f,   0.0f,  0.707f, -0.707f,  1.0f, 0.0f, // Bottom-right
+             0.0f, 1.0f,  0.0f,   0.0f,  0.707f, -0.707f,  0.5f, 1.0f, // Apex
+
+            // Left Face (Normal: -0.707f, 0.707f, 0.0f)
+            -0.5f, 0.0f, -0.5f,  -0.707f,  0.707f,  0.0f,   0.0f, 0.0f, // Bottom-left
+            -0.5f, 0.0f,  0.5f,  -0.707f,  0.707f,  0.0f,   1.0f, 0.0f, // Bottom-right
+             0.0f, 1.0f,  0.0f,  -0.707f,  0.707f,  0.0f,   0.5f, 1.0f  // Apex
         };
         wgpu::BufferDescriptor bufferDesc {
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex,
+            .size = vertices.size() * sizeof(float),
             .mappedAtCreation = false,
         };
-        bufferDesc.size = vertices.size() * sizeof(float);
-        testBuffer = device.CreateBuffer(&bufferDesc);
-        queue.WriteBuffer(testBuffer, 0, vertices.data(), bufferDesc.size);
+        vertexBuffer = device.CreateBuffer(&bufferDesc);
+        queue.WriteBuffer(vertexBuffer, 0, vertices.data(), bufferDesc.size);
     }
 
 
-    void Engine::createPipeline()
+    void Engine::initPipeline()
     {
         wgpu::ShaderModule simpleModule = getShaderModule(device, "../shaders/simple_triangle.wgsl", "Triangle Module");
-
-
-        wgpu::VertexAttribute attrib{
-            .format = wgpu::VertexFormat::Float32x2,
-            .shaderLocation = 0,
-        };
-        attrib.offset = 0;
-        wgpu::VertexBufferLayout vertLayout;
-        vertLayout.stepMode = wgpu::VertexStepMode::Vertex;
-        vertLayout.arrayStride = 2 * sizeof(float);
-        vertLayout.attributeCount = 1;
-        vertLayout.attributes = &attrib;
-
+        // Top level pipeline descriptor -> used to create the pipeline
         wgpu::RenderPipelineDescriptor pipelineDesc;
+
+
+        // --- Uniform binding ---
+        // This is basically a entry (binding at a certain location within a group)
+        wgpu::BindGroupLayoutEntry entryLayout = {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Vertex
+        };
+        entryLayout.buffer.type = wgpu::BufferBindingType::Uniform;
+        entryLayout.buffer.minBindingSize = sizeof(glm::mat4);
+
+        // This describes the whole group
+        wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
+            .entryCount = 1,
+            .entries = &entryLayout
+        };
+        wgpu::BindGroupLayout bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc);
+
+        // This describe the groupS if there are multiple
+        wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &bindGroupLayout
+        };
+        wgpu::PipelineLayout pipelineLayout = device.CreatePipelineLayout(&lipelineLayoutDesc);
+        pipelineDesc.layout = pipelineLayout;
+
+
+        // --- Attribute binding ---
+        wgpu::VertexAttribute vertAttrib[3] = {
+            {
+                .format = wgpu::VertexFormat::Float32x3,
+                .offset = 0,
+                .shaderLocation = 0,
+            },
+        {
+                .format = wgpu::VertexFormat::Float32x3,
+                .offset = 3 * sizeof(float),
+                .shaderLocation = 1,
+            },
+        {
+                .format = wgpu::VertexFormat::Float32x2,
+                .offset = 6 * sizeof(float),
+                .shaderLocation = 2,
+            }
+        };
+        wgpu::VertexBufferLayout vertLayout = {
+            .arrayStride = 8 * sizeof(float),
+            .stepMode = wgpu::VertexStepMode::Vertex,
+            .attributeCount = 3,
+            // this must target the first element of the array if there are multiple attributes
+            .attributes = &vertAttrib[0]
+        };
         pipelineDesc.vertex.module = simpleModule;
         pipelineDesc.vertex.bufferCount = 1;
         pipelineDesc.vertex.buffers = &vertLayout;
 
+
+        // --- Fragment state ---
         wgpu::ColorTargetState colorTarget;
         colorTarget.format = surfaceFormat;
 
-        wgpu::FragmentState fragmentState;
-        fragmentState.module = simpleModule;
-        fragmentState.targetCount = 1;
-        fragmentState.targets = &colorTarget;
+        wgpu::FragmentState fragmentState = {
+            .module = simpleModule,
+            .targetCount = 1,
+            .targets = &colorTarget
+        };
         pipelineDesc.fragment = &fragmentState;
 
-        pipelineDesc.depthStencil = nullptr;
+        // --- Depth  ---
+        wgpu::DepthStencilState depthStencil = {
+            .format = wgpu::TextureFormat::Depth24Plus,
+            .depthWriteEnabled = true,
+            .depthCompare = wgpu::CompareFunction::Less,
+            .stencilReadMask = 0,
+            .stencilWriteMask = 0
+        };
+        pipelineDesc.depthStencil = &depthStencil;
 
-        simplePipeline = device.CreateRenderPipeline(&pipelineDesc);
+        grassPipeline = device.CreateRenderPipeline(&pipelineDesc);
+
+
+        // --- Bind group ---
+        // The "real" bindings between the buffer and the shader locs, not just the layout
+        wgpu::BindGroupEntry entry = {
+            .binding = 0,
+            .buffer = uniformBuffer,
+            .offset = 0,
+            .size = sizeof(glm::mat4)
+        };
+        wgpu::BindGroupDescriptor bindGroupDesc = {
+            .layout = bindGroupLayout,
+            .entryCount = bindGroupLayoutDesc.entryCount,
+            .entries = &entry
+        };
+        grassBindGroup = device.CreateBindGroup(&bindGroupDesc);
     }
 
 
@@ -229,17 +326,59 @@ namespace grass
     }
 
 
+    void Engine::initUniformBuffer()
+    {
+        camera.position = glm::vec3{-1.5, 1.5, 1.5};
+        camera.updateMatrix();
+
+        wgpu::BufferDescriptor uniformBufferDesc{
+            .label = "Camera uniform buffer",
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
+            .size = sizeof(glm::mat4),
+            .mappedAtCreation = false,
+        };
+
+        uniformBuffer = device.CreateBuffer(&uniformBufferDesc);
+        queue.WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBufferDesc.size);
+    }
+
+
+    void Engine::initDepthTextureView()
+    {
+        wgpu::TextureDescriptor depthTextureDesc = {
+            .usage = wgpu::TextureUsage::RenderAttachment,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = {WIDTH, HEIGHT, 1},
+            .format = wgpu::TextureFormat::Depth24Plus,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+        wgpu::Texture depthTexture = device.CreateTexture(&depthTextureDesc);
+
+        wgpu::TextureViewDescriptor depthViewDesc = {
+            .format = wgpu::TextureFormat::Depth24Plus,
+            .dimension = wgpu::TextureViewDimension::e2D,
+            .baseMipLevel = 0,
+            .mipLevelCount = 1,
+            .baseArrayLayer = 0,
+            .arrayLayerCount = 1,
+            .aspect = wgpu::TextureAspect::DepthOnly,
+        };
+
+        depthView = depthTexture.CreateView(&depthViewDesc);
+    }
+
+
+
     void Engine::draw()
     {
         // Get texture view to draw on, from the surface
         wgpu::TextureView targetView = getNextSurfaceTextureView();
         if (!targetView) return;
 
-
         // Create command encoder
-        wgpu::CommandEncoderDescriptor encoderDesc = {};
+        wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
-
 
         // Encode render pass
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
@@ -247,23 +386,30 @@ namespace grass
             .resolveTarget = nullptr,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = wgpu::Color{sin(frameNmber / 120.0), 0.1, 0.2, 1.0},
+            .clearValue = wgpu::Color{0.1, 0.1, 0.1, 1.0},
         };
-
+        wgpu::RenderPassDepthStencilAttachment renderPassDepthAttachment = {
+            .view = depthView,
+            .depthLoadOp = wgpu::LoadOp::Clear,
+            .depthStoreOp = wgpu::StoreOp::Store,
+            .depthClearValue = 1.0,
+        };
         wgpu::RenderPassDescriptor renderPassDesc = {
             .colorAttachmentCount = 1,
             .colorAttachments = &renderPassColorAttachment,
+            .depthStencilAttachment = &renderPassDepthAttachment,
         };
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
-        pass.SetPipeline(simplePipeline);
-        pass.SetVertexBuffer(0, testBuffer, 0, testBuffer.GetSize());
-        pass.Draw(3, 1, 0, 0);
-        pass.End();
 
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
+        pass.SetPipeline(grassPipeline);
+        pass.SetBindGroup(0, grassBindGroup, 0, nullptr);
+        pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
+        pass.Draw(18, 1, 0, 0);
+        pass.End();
 
         // Create command buffer
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
-            .label = "Command buffer",
+            .label = "Command buffer"
         };
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
