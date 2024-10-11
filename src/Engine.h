@@ -5,14 +5,17 @@
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu_glfw.h>
 #include <dawn/native/DawnNative.h>
+#include <cmath>
 
 #include "Camera.h"
 
 
 namespace grass
 {
-    constexpr unsigned int WIDTH = 800;
-    constexpr unsigned int HEIGHT = 600;
+    constexpr uint16_t WIDTH = 800;
+    constexpr uint16_t HEIGHT = 600;
+    constexpr float_t AXIS_BOUND = 5.0;
+    constexpr size_t density = 5;
 
     class Engine
     {
@@ -28,36 +31,39 @@ namespace grass
         void initWindow();
         void initWebgpu();
         void configSurface();
-        void initVertexBuffer();
-        void initUniformBuffer();
-        void initComputeBuffer();
+        void createVertexBuffer();
+        void createUniformBuffer();
+        void createComputeBuffer();
         void initRenderPipeline();
-        void initDepthTextureView();
+        void createDepthTextureView();
         void initComputPipeline();
         wgpu::TextureView getNextSurfaceTextureView();
-        void compute();
+        void computeGrassBladePositions();
         void draw();
 
+        // Global
         wgpu::Instance instance;
         wgpu::Device device;
         wgpu::Queue queue;
         wgpu::Surface surface;
         wgpu::TextureFormat surfaceFormat;
+        size_t numberOfBlades = std::pow(2 * AXIS_BOUND * density, 2);
 
+        // Render
         wgpu::Buffer vertexBuffer;
         size_t vertexCount = 0;
         wgpu::Buffer uniformBuffer;
+        wgpu::Buffer bladesPositionBufferVertex;
         wgpu::RenderPipeline grassPipeline;
         wgpu::BindGroup grassBindGroup;
         wgpu::TextureView depthView;
 
+        // Compute
         wgpu::ComputePipeline computePipeline;
-        wgpu::Buffer testComputeBuffer;
-        wgpu::Buffer readableColorTestBuffer;
+        wgpu::Buffer bladesPositionBufferCompute;
         wgpu::BindGroup computeBindGroup;
-        glm::vec3 clearColor{};
 
-        GLFWwindow* window;
+        GLFWwindow* window = nullptr;
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNmber = 0;
 

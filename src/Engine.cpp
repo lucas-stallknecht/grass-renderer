@@ -18,13 +18,12 @@ namespace grass
         initWindow();
         initWebgpu();
         configSurface();
-        initVertexBuffer();
-        initUniformBuffer();
+        createVertexBuffer();
+        createUniformBuffer();
         initRenderPipeline();
-        initDepthTextureView();
-        initComputeBuffer();
+        createDepthTextureView();
+        createComputeBuffer();
         initComputPipeline();
-        compute();
     }
 
 
@@ -96,13 +95,15 @@ namespace grass
         deviceDesc.nextInChain = &dawnTogglesDesc;
         deviceDesc.SetDeviceLostCallback(
             wgpu::CallbackMode::AllowSpontaneous,
-            [](const wgpu::Device& device, wgpu::DeviceLostReason reason, const char* message) {
+            [](const wgpu::Device& device, wgpu::DeviceLostReason reason, const char* message)
+            {
                 fprintf(stderr, "Device lost: reason: %d\n", reason);
                 if (message) fprintf(stderr, "message: %s\n\n", message);
             }
         );
         deviceDesc.SetUncapturedErrorCallback(
-            [](const wgpu::Device& device, wgpu::ErrorType type, const char* message) {
+            [](const wgpu::Device& device, wgpu::ErrorType type, const char* message)
+            {
                 fprintf(stderr, "Uncaptured device error: type: %d\n", type);
                 if (message) fprintf(stderr, "message: %s\n\n", message);
             }
@@ -156,16 +157,16 @@ namespace grass
     }
 
 
-    void Engine::initVertexBuffer()
+    void Engine::createVertexBuffer()
     {
         std::vector<VertexData> verticesData;
-        if(!loadMesh("../assets/grass_blade.obj", verticesData))
+        if (!loadMesh("../assets/grass_blade.obj", verticesData))
         {
             std::cerr << "Could not load geometry!" << std::endl;
         }
 
         vertexCount = verticesData.size();
-        wgpu::BufferDescriptor bufferDesc {
+        wgpu::BufferDescriptor bufferDesc{
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex,
             .size = verticesData.size() * sizeof(VertexData),
             .mappedAtCreation = false,
@@ -177,24 +178,36 @@ namespace grass
 
     void Engine::initRenderPipeline()
     {
-        wgpu::ShaderModule simpleModule = getShaderModule(device, "../shaders/simple_triangle.wgsl", "Triangle Module");
+        wgpu::ShaderModule simpleModule = getShaderModule(device, "../shaders/blade.wgsl", "Triangle Module");
         // Top level pipeline descriptor -> used to create the pipeline
         wgpu::RenderPipelineDescriptor pipelineDesc;
 
 
         // --- Uniform binding ---
         // This is basically a entry (binding at a certain location within a group)
-        wgpu::BindGroupLayoutEntry entryLayout = {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex
+        wgpu::BindGroupLayoutEntry entryLayouts[2] = {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .minBindingSize = sizeof(glm::mat4)
+                }
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .minBindingSize = numberOfBlades * sizeof(glm::vec4)
+                }
+            }
         };
-        entryLayout.buffer.type = wgpu::BufferBindingType::Uniform;
-        entryLayout.buffer.minBindingSize = sizeof(glm::mat4);
 
         // This describes the whole group
         wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
-            .entryCount = 1,
-            .entries = &entryLayout
+            .entryCount = 2,
+            .entries = &entryLayouts[0]
         };
         wgpu::BindGroupLayout bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc);
 
@@ -214,12 +227,12 @@ namespace grass
                 .offset = 0,
                 .shaderLocation = 0,
             },
-        {
+            {
                 .format = wgpu::VertexFormat::Float32x3,
                 .offset = 3 * sizeof(float),
                 .shaderLocation = 1,
             },
-        {
+            {
                 .format = wgpu::VertexFormat::Float32x2,
                 .offset = 6 * sizeof(float),
                 .shaderLocation = 2,
@@ -263,39 +276,45 @@ namespace grass
 
         // --- Bind group ---
         // The "real" bindings between the buffer and the shader locs, not just the layout
-        wgpu::BindGroupEntry entry = {
-            .binding = 0,
-            .buffer = uniformBuffer,
-            .offset = 0,
-            .size = sizeof(glm::mat4)
+        wgpu::BindGroupEntry entries[2] = {
+            {
+                .binding = 0,
+                .buffer = uniformBuffer,
+                .offset = 0,
+                .size = sizeof(glm::mat4)
+            },
+            {
+                .binding = 1,
+                .buffer = bladesPositionBufferVertex,
+                .offset = 0,
+                .size = numberOfBlades * sizeof(glm::vec4)
+            }
         };
         wgpu::BindGroupDescriptor bindGroupDesc = {
             .layout = bindGroupLayout,
             .entryCount = bindGroupLayoutDesc.entryCount,
-            .entries = &entry
+            .entries = &entries[0]
         };
         grassBindGroup = device.CreateBindGroup(&bindGroupDesc);
     }
 
 
-    void Engine::initComputeBuffer()
+    void Engine::createComputeBuffer()
     {
         wgpu::BufferDescriptor bufferDesc = {
             .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
-            .size = sizeof(glm::vec3),
+            .size = sizeof(glm::vec4) * numberOfBlades,
             .mappedAtCreation = false
         };
 
-        testComputeBuffer = device.CreateBuffer(&bufferDesc);
-
-        bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-        readableColorTestBuffer = device.CreateBuffer(&bufferDesc);
+        bladesPositionBufferCompute = device.CreateBuffer(&bufferDesc);
     }
 
 
     void Engine::initComputPipeline()
     {
-        wgpu::ShaderModule computeModule = getShaderModule(device, "../shaders/grass_position.compute.wgsl", "Grass position compute module");
+        wgpu::ShaderModule computeModule = getShaderModule(device, "../shaders/grass_position.compute.wgsl",
+                                                           "Grass position compute module");
         wgpu::ComputePipelineDescriptor computePipelineDesc;
 
         wgpu::ProgrammableStageDescriptor computeStageDesc = {
@@ -310,7 +329,7 @@ namespace grass
             .visibility = wgpu::ShaderStage::Compute,
         };
         entryLayout.buffer.type = wgpu::BufferBindingType::Storage;
-        entryLayout.buffer.minBindingSize = sizeof(glm::vec3);
+        entryLayout.buffer.minBindingSize = sizeof(glm::vec4) * numberOfBlades;
 
         wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
             .entryCount = 1,
@@ -328,12 +347,11 @@ namespace grass
         computePipeline = device.CreateComputePipeline(&computePipelineDesc);
 
 
-
         wgpu::BindGroupEntry entry = {
             .binding = 0,
-            .buffer = testComputeBuffer,
+            .buffer = bladesPositionBufferCompute,
             .offset = 0,
-            .size = testComputeBuffer.GetSize(),
+            .size = bladesPositionBufferCompute.GetSize(),
         };
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
@@ -370,12 +388,12 @@ namespace grass
     }
 
 
-    void Engine::initUniformBuffer()
+    void Engine::createUniformBuffer()
     {
-        camera.position = glm::vec3{1.0, 0.0, 1.0};
+        camera.position = glm::vec3{10.0, 10.0, 10.0};
         camera.updateMatrix();
 
-        wgpu::BufferDescriptor uniformBufferDesc{
+        wgpu::BufferDescriptor uniformBufferDesc = {
             .label = "Camera uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
             .size = sizeof(glm::mat4),
@@ -384,10 +402,19 @@ namespace grass
 
         uniformBuffer = device.CreateBuffer(&uniformBufferDesc);
         queue.WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBufferDesc.size);
+
+        wgpu::BufferDescriptor storageBufferDesc = {
+            .label = "Position storage buffer inside vertex",
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage,
+            .size = sizeof(glm::vec4) * numberOfBlades,
+            .mappedAtCreation = false,
+        };
+
+        bladesPositionBufferVertex = device.CreateBuffer(&storageBufferDesc);
     }
 
 
-    void Engine::initDepthTextureView()
+    void Engine::createDepthTextureView()
     {
         wgpu::TextureDescriptor depthTextureDesc = {
             .usage = wgpu::TextureUsage::RenderAttachment,
@@ -413,7 +440,7 @@ namespace grass
     }
 
 
-    void Engine::compute()
+    void Engine::computeGrassBladePositions()
     {
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
@@ -423,10 +450,8 @@ namespace grass
 
         pass.SetPipeline(computePipeline);
         pass.SetBindGroup(0, computeBindGroup);
-        pass.DispatchWorkgroups(1, 1, 1);
+        pass.DispatchWorkgroups( density * AXIS_BOUND * 2,  density * AXIS_BOUND * 2, 1);
         pass.End();
-        encoder.CopyBufferToBuffer(testComputeBuffer, 0, readableColorTestBuffer, 0, sizeof(glm::vec3));
-
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
             .label = "Command buffer"
@@ -449,31 +474,13 @@ namespace grass
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
 
-
-        if(readableColorTestBuffer.GetMapState() != wgpu::BufferMapState::Mapped)
-        {
-            wgpu::Future readColorFuture = readableColorTestBuffer.MapAsync(
-                       wgpu::MapMode::Read,
-                       0,
-                       sizeof(glm::vec3),
-                       wgpu::CallbackMode::WaitAnyOnly,
-                       [](wgpu::MapAsyncStatus status, char const * message)
-                       {
-                           if (status != wgpu::MapAsyncStatus::Success) return;
-                       }
-                   );
-            instance.WaitAny(readColorFuture, UINT8_MAX);
-            const auto color = static_cast<const glm::vec3*>(readableColorTestBuffer.GetConstMappedRange(0, sizeof(glm::vec3)));
-            clearColor = *color;
-        }
-
         // Encode render pass
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
             .view = targetView,
             .resolveTarget = nullptr,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = wgpu::Color{clearColor.r, clearColor.g, clearColor.b, 1.0},
+            .clearValue = wgpu::Color{0.1, 0.1, 0.1, 1.0},
         };
         wgpu::RenderPassDepthStencilAttachment renderPassDepthAttachment = {
             .view = depthView,
@@ -487,11 +494,14 @@ namespace grass
             .depthStencilAttachment = &renderPassDepthAttachment,
         };
 
+        encoder.CopyBufferToBuffer(bladesPositionBufferCompute, 0, bladesPositionBufferVertex, 0,
+                           bladesPositionBufferCompute.GetSize());
+
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
         pass.SetPipeline(grassPipeline);
         pass.SetBindGroup(0, grassBindGroup, 0, nullptr);
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
-        pass.Draw(vertexCount, 1, 0, 0);
+        pass.Draw(vertexCount, numberOfBlades, 0, 0);
         pass.End();
 
         // Create command buffer
@@ -509,6 +519,7 @@ namespace grass
 
     void Engine::run()
     {
+        computeGrassBladePositions();
         while (!glfwWindowShouldClose(window))
         {
             glfwPollEvents();
