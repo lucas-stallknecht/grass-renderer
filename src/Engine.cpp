@@ -18,12 +18,12 @@ namespace grass
         initWindow();
         initWebgpu();
         configSurface();
+        createComputeBuffer();
+        initComputPipeline();
         createVertexBuffer();
         createUniformBuffer();
         initRenderPipeline();
         createDepthTextureView();
-        createComputeBuffer();
-        initComputPipeline();
     }
 
 
@@ -285,7 +285,7 @@ namespace grass
             },
             {
                 .binding = 1,
-                .buffer = bladesPositionBufferVertex,
+                .buffer = bladesPositionBufferCompute,
                 .offset = 0,
                 .size = numberOfBlades * sizeof(glm::vec4)
             }
@@ -302,7 +302,7 @@ namespace grass
     void Engine::createComputeBuffer()
     {
         wgpu::BufferDescriptor bufferDesc = {
-            .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+            .usage = wgpu::BufferUsage::Storage,
             .size = sizeof(glm::vec4) * numberOfBlades,
             .mappedAtCreation = false
         };
@@ -402,15 +402,6 @@ namespace grass
 
         uniformBuffer = device.CreateBuffer(&uniformBufferDesc);
         queue.WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBufferDesc.size);
-
-        wgpu::BufferDescriptor storageBufferDesc = {
-            .label = "Position storage buffer inside vertex",
-            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage,
-            .size = sizeof(glm::vec4) * numberOfBlades,
-            .mappedAtCreation = false,
-        };
-
-        bladesPositionBufferVertex = device.CreateBuffer(&storageBufferDesc);
     }
 
 
@@ -493,9 +484,6 @@ namespace grass
             .colorAttachments = &renderPassColorAttachment,
             .depthStencilAttachment = &renderPassDepthAttachment,
         };
-
-        encoder.CopyBufferToBuffer(bladesPositionBufferCompute, 0, bladesPositionBufferVertex, 0,
-                           bladesPositionBufferCompute.GetSize());
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
         pass.SetPipeline(grassPipeline);

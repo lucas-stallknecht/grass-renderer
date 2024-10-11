@@ -53,7 +53,6 @@ namespace grass
         wgpu::Buffer vertexBuffer;
         size_t vertexCount = 0;
         wgpu::Buffer uniformBuffer;
-        wgpu::Buffer bladesPositionBufferVertex;
         wgpu::RenderPipeline grassPipeline;
         wgpu::BindGroup grassBindGroup;
         wgpu::TextureView depthView;
