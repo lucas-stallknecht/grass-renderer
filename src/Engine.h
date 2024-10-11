@@ -25,16 +25,20 @@ namespace grass
         void cleanup();
 
     private:
-        void initWebgpu();
         void initWindow();
+        void initWebgpu();
         void configSurface();
         void initVertexBuffer();
         void initUniformBuffer();
-        void initPipeline();
+        void initComputeBuffer();
+        void initRenderPipeline();
         void initDepthTextureView();
+        void initComputPipeline();
         wgpu::TextureView getNextSurfaceTextureView();
+        void compute();
         void draw();
 
+        wgpu::Instance instance;
         wgpu::Device device;
         wgpu::Queue queue;
         wgpu::Surface surface;
@@ -47,8 +51,14 @@ namespace grass
         wgpu::BindGroup grassBindGroup;
         wgpu::TextureView depthView;
 
+        wgpu::ComputePipeline computePipeline;
+        wgpu::Buffer testComputeBuffer;
+        wgpu::Buffer readableColorTestBuffer;
+        wgpu::BindGroup computeBindGroup;
+        glm::vec3 clearColor{};
+
         GLFWwindow* window;
-        Camera camera{60.0, WIDTH / static_cast<float_t>(HEIGHT)};
+        Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNmber = 0;
 
 
