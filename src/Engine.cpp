@@ -155,46 +155,20 @@ namespace grass
 
     void Engine::initVertexBuffer()
     {
-        std::vector<float> vertices = {
-            // Base (Square) - 2 triangles (Normal: 0, -1, 0)
-            // Triangle 1
-            -0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 0.0f, // Bottom-left
-             0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 0.0f, // Bottom-right
-             0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 1.0f, // Top-right
+        std::vector<VertexData> verticesData;
+        if(!loadMesh("../assets/suzanne.obj", verticesData))
+        {
+            std::cerr << "Could not load geometry!" << std::endl;
+        }
 
-            // Triangle 2
-            -0.5f, 0.0f, -0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 0.0f, // Bottom-left
-             0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   1.0f, 1.0f, // Top-right
-            -0.5f, 0.0f,  0.5f,   0.0f, -1.0f, 0.0f,   0.0f, 1.0f, // Top-left
-
-            // Sides - 4 triangular faces
-            // Front Face (Normal: 0, 0.707f, 0.707f)
-            -0.5f, 0.0f,  0.5f,   0.0f,  0.707f,  0.707f,  0.0f, 0.0f, // Bottom-left
-             0.5f, 0.0f,  0.5f,   0.0f,  0.707f,  0.707f,  1.0f, 0.0f, // Bottom-right
-             0.0f, 1.0f,  0.0f,   0.0f,  0.707f,  0.707f,  0.5f, 1.0f, // Apex
-
-            // Right Face (Normal: 0.707f, 0.707f, 0.0f)
-             0.5f, 0.0f,  0.5f,   0.707f,  0.707f,  0.0f,   0.0f, 0.0f, // Bottom-left
-             0.5f, 0.0f, -0.5f,   0.707f,  0.707f,  0.0f,   1.0f, 0.0f, // Bottom-right
-             0.0f, 1.0f,  0.0f,   0.707f,  0.707f,  0.0f,   0.5f, 1.0f, // Apex
-
-            // Back Face (Normal: 0.0f, 0.707f, -0.707f)
-             0.5f, 0.0f, -0.5f,   0.0f,  0.707f, -0.707f,  0.0f, 0.0f, // Bottom-left
-            -0.5f, 0.0f, -0.5f,   0.0f,  0.707f, -0.707f,  1.0f, 0.0f, // Bottom-right
-             0.0f, 1.0f,  0.0f,   0.0f,  0.707f, -0.707f,  0.5f, 1.0f, // Apex
-
-            // Left Face (Normal: -0.707f, 0.707f, 0.0f)
-            -0.5f, 0.0f, -0.5f,  -0.707f,  0.707f,  0.0f,   0.0f, 0.0f, // Bottom-left
-            -0.5f, 0.0f,  0.5f,  -0.707f,  0.707f,  0.0f,   1.0f, 0.0f, // Bottom-right
-             0.0f, 1.0f,  0.0f,  -0.707f,  0.707f,  0.0f,   0.5f, 1.0f  // Apex
-        };
+        vertexCount = verticesData.size();
         wgpu::BufferDescriptor bufferDesc {
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex,
-            .size = vertices.size() * sizeof(float),
+            .size = verticesData.size() * sizeof(VertexData),
             .mappedAtCreation = false,
         };
         vertexBuffer = device.CreateBuffer(&bufferDesc);
-        queue.WriteBuffer(vertexBuffer, 0, vertices.data(), bufferDesc.size);
+        queue.WriteBuffer(vertexBuffer, 0, verticesData.data(), bufferDesc.size);
     }
 
 
@@ -328,7 +302,7 @@ namespace grass
 
     void Engine::initUniformBuffer()
     {
-        camera.position = glm::vec3{-1.5, 1.5, 1.5};
+        camera.position = glm::vec3{0.0, 0.0, 3.0};
         camera.updateMatrix();
 
         wgpu::BufferDescriptor uniformBufferDesc{
@@ -404,7 +378,7 @@ namespace grass
         pass.SetPipeline(grassPipeline);
         pass.SetBindGroup(0, grassBindGroup, 0, nullptr);
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
-        pass.Draw(18, 1, 0, 0);
+        pass.Draw(vertexCount, 1, 0, 0);
         pass.End();
 
         // Create command buffer

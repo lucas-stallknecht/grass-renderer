@@ -41,6 +41,7 @@ namespace grass
         wgpu::TextureFormat surfaceFormat;
 
         wgpu::Buffer vertexBuffer;
+        size_t vertexCount = 0;
         wgpu::Buffer uniformBuffer;
         wgpu::RenderPipeline grassPipeline;
         wgpu::BindGroup grassBindGroup;

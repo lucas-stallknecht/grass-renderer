@@ -53,7 +53,10 @@ function(target_copy_webgpu_binaries Target)
     )
 endfunction()
 
-include_directories(App ${LIBS_DIR})
+target_include_directories(App PRIVATE
+        ${LIBS_DIR}
+        ${LIBS_DIR}/tinyobjloader
+)
 
 target_link_libraries(App PRIVATE dawn::webgpu_dawn glfw webgpu_glfw)
 target_copy_webgpu_binaries(App)

@@ -1,5 +1,7 @@
 #include "Utils.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -21,6 +23,7 @@ wgpu::ShaderModule grass::getShaderModule(wgpu::Device& device, std::string shad
 
 }
 
+
 void grass::parseShaderFile(const std::string &filePath,  std::string& sourceCode) {
     std::ifstream shaderFile;
     // ensure ifstream objects can throw exceptions:
@@ -40,4 +43,54 @@ void grass::parseShaderFile(const std::string &filePath,  std::string& sourceCod
         std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ : " << filePath << std::endl;
     }
 }
+
+
+bool grass::loadMesh(const std::string& filePath, std::vector<VertexData>& verticesData)
+{
+    tinyobj::ObjReaderConfig readerConfig;
+    readerConfig.mtl_search_path = "./";
+
+    tinyobj::ObjReader reader;
+
+    if(!reader.ParseFromFile(filePath, readerConfig))
+    {
+        if (!reader.Error().empty()) {
+            std::cerr << "TinyObjReader: " << reader.Error();
+        }
+        return false;
+    }
+
+    if (!reader.Warning().empty()) {
+        std::cout << "TinyObjReader: " << reader.Warning();
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+
+    const auto& shape = shapes[0]; // look at the first shape only
+
+    verticesData.resize(shape.mesh.indices.size());
+    for (size_t i = 0; i < shape.mesh.indices.size(); ++i) {
+        const tinyobj::index_t& idx = shape.mesh.indices[i];
+
+        verticesData[i].position = {
+            attrib.vertices[3 * idx.vertex_index + 0],
+            attrib.vertices[3 * idx.vertex_index + 1],
+            attrib.vertices[3 * idx.vertex_index + 2]
+        };
+
+        verticesData[i].normal = {
+            attrib.normals[3 * idx.normal_index + 0],
+            attrib.normals[3 * idx.normal_index + 1],
+            attrib.normals[3 * idx.normal_index + 2]
+        };
+
+        verticesData[i].texCoord = {
+            attrib.texcoords[2 * idx.vertex_index + 0],
+            attrib.texcoords[2 * idx.vertex_index + 1],
+        };
+    }
+    return true;
+}
+
 
