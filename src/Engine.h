@@ -5,31 +5,15 @@
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu_glfw.h>
 #include <dawn/native/DawnNative.h>
-#include <cmath>
 
+#include "GrassSettings.h"
 #include "Camera.h"
+#include "Renderer.h"
+#include "ComputeManager.h"
 
 
 namespace grass
 {
-
-    struct GrassSettings
-    {
-        GrassSettings() { calculateTotal(); }
-        void calculateTotal()
-        {
-            bladesPerSide = sideLength * density * 2;
-            totalBlades = static_cast<size_t>(std::pow(bladesPerSide, 2));
-        }
-        size_t sideLength = 2;
-        size_t density = 5; // blades per unit
-        size_t bladesPerSide{};
-        size_t totalBlades{};
-    };
-
-    constexpr uint16_t WIDTH = 1400;
-    constexpr uint16_t HEIGHT = 800;
-
     class Engine
     {
 
@@ -44,36 +28,17 @@ namespace grass
         void initWindow();
         void initWebgpu();
         void configSurface();
-        void createVertexBuffer();
-        void createUniformBuffer();
-        void createComputeBuffer();
-        void initRenderPipeline();
-        void createDepthTextureView();
-        void initComputPipeline();
         wgpu::TextureView getNextSurfaceTextureView();
-        void computeGrassBladePositions();
-        void draw();
+
+        std::unique_ptr<Renderer> renderer;
+        std::unique_ptr<ComputeManager> computeManager;
 
         // Global
         wgpu::Instance instance;
         wgpu::Device device;
         wgpu::Queue queue;
         wgpu::Surface surface;
-        wgpu::TextureFormat surfaceFormat;
-
-        // Render
-        wgpu::Buffer vertexBuffer;
-        size_t vertexCount = 0;
-        wgpu::Buffer uniformBuffer;
-        wgpu::RenderPipeline grassPipeline;
-        wgpu::BindGroup grassBindGroup;
-        wgpu::TextureView depthView;
-
-        // Compute
-        wgpu::ComputePipeline computePipeline;
-        wgpu::Buffer bladesPositionBufferCompute;
-        wgpu::Buffer grassSettingsUniformBuffer;
-        wgpu::BindGroup computeBindGroup;
+        wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
 
         GLFWwindow* window = nullptr;
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};

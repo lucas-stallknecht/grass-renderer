@@ -29,8 +29,7 @@ file(GLOB_RECURSE SOURCES
         "${SOURCE_DIR}/*.c"
 )
 
-add_executable(App main.cpp ${SOURCES}
-        src/Camera.h)
+add_executable(App main.cpp ${SOURCES})
 
 set_target_properties(App PROPERTIES
         CXX_STANDARD 20
