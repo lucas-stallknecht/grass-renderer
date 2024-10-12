@@ -10,6 +10,7 @@ namespace grass
     Engine* loadedEngine = nullptr;
     Engine& Engine::Get() { return *loadedEngine; }
 
+
     void Engine::init()
     {
         assert(loadedEngine == nullptr);
@@ -167,6 +168,7 @@ namespace grass
 
         vertexCount = verticesData.size();
         wgpu::BufferDescriptor bufferDesc{
+            .label = "Blade of grass vertex buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex,
             .size = verticesData.size() * sizeof(VertexData),
             .mappedAtCreation = false,
@@ -199,7 +201,7 @@ namespace grass
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .minBindingSize = numberOfBlades * sizeof(glm::vec4)
+                    .minBindingSize = grassSettings.totalBlades * sizeof(glm::vec4)
                 }
             }
         };
@@ -271,6 +273,7 @@ namespace grass
         };
         pipelineDesc.depthStencil = &depthStencil;
 
+        pipelineDesc.label = "Blade of grass pipeline";
         grassPipeline = device.CreateRenderPipeline(&pipelineDesc);
 
 
@@ -287,10 +290,11 @@ namespace grass
                 .binding = 1,
                 .buffer = bladesPositionBufferCompute,
                 .offset = 0,
-                .size = numberOfBlades * sizeof(glm::vec4)
+                .size = grassSettings.totalBlades * sizeof(glm::vec4)
             }
         };
         wgpu::BindGroupDescriptor bindGroupDesc = {
+            .label = "Blade of grass bind group",
             .layout = bindGroupLayout,
             .entryCount = bindGroupLayoutDesc.entryCount,
             .entries = &entries[0]
@@ -301,13 +305,28 @@ namespace grass
 
     void Engine::createComputeBuffer()
     {
-        wgpu::BufferDescriptor bufferDesc = {
+        wgpu::BufferDescriptor posBufferDesc = {
+            .label = "Positions storage buffer",
             .usage = wgpu::BufferUsage::Storage,
-            .size = sizeof(glm::vec4) * numberOfBlades,
+            .size = sizeof(glm::vec4) * grassSettings.totalBlades,
             .mappedAtCreation = false
         };
 
-        bladesPositionBufferCompute = device.CreateBuffer(&bufferDesc);
+        bladesPositionBufferCompute = device.CreateBuffer(&posBufferDesc);
+
+        wgpu::BufferDescriptor settingsBufferDesc = {
+            .label = "Grass settings uniform buffer",
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(glm::vec3),
+            .mappedAtCreation = false
+        };
+
+        grassSettingsUniformBuffer = device.CreateBuffer(&settingsBufferDesc);
+        const auto data = glm::vec3(grassSettings.sideLength,
+                                    grassSettings.density,
+                                    static_cast<float_t>(grassSettings.sideLength) * 2.0 / static_cast<float_t>(
+                                        grassSettings.bladesPerSide));
+        queue.WriteBuffer(grassSettingsUniformBuffer, 0, &data, grassSettingsUniformBuffer.GetSize());
     }
 
 
@@ -316,6 +335,7 @@ namespace grass
         wgpu::ShaderModule computeModule = getShaderModule(device, "../shaders/grass_position.compute.wgsl",
                                                            "Grass position compute module");
         wgpu::ComputePipelineDescriptor computePipelineDesc;
+        computePipelineDesc.label = "Compute pipeline";
 
         wgpu::ProgrammableStageDescriptor computeStageDesc = {
             .module = computeModule,
@@ -324,16 +344,29 @@ namespace grass
         computePipelineDesc.compute = computeStageDesc;
 
 
-        wgpu::BindGroupLayoutEntry entryLayout = {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute,
+        wgpu::BindGroupLayoutEntry entryLayouts[2] = {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Compute,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .minBindingSize = sizeof(glm::vec3)
+                }
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Compute,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Storage,
+                    .minBindingSize = sizeof(glm::vec4) * grassSettings.totalBlades
+                }
+            }
         };
-        entryLayout.buffer.type = wgpu::BufferBindingType::Storage;
-        entryLayout.buffer.minBindingSize = sizeof(glm::vec4) * numberOfBlades;
+
 
         wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
-            .entryCount = 1,
-            .entries = &entryLayout
+            .entryCount = 2,
+            .entries = &entryLayouts[0]
         };
         wgpu::BindGroupLayout bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc);
 
@@ -347,17 +380,26 @@ namespace grass
         computePipeline = device.CreateComputePipeline(&computePipelineDesc);
 
 
-        wgpu::BindGroupEntry entry = {
-            .binding = 0,
-            .buffer = bladesPositionBufferCompute,
-            .offset = 0,
-            .size = bladesPositionBufferCompute.GetSize(),
+        wgpu::BindGroupEntry entries[2] = {
+            {
+                .binding = 0,
+                .buffer = grassSettingsUniformBuffer,
+                .offset = 0,
+                .size = grassSettingsUniformBuffer.GetSize(),
+            },
+            {
+                .binding = 1,
+                .buffer = bladesPositionBufferCompute,
+                .offset = 0,
+                .size = bladesPositionBufferCompute.GetSize(),
+            }
         };
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
+            .label = "Compute bind group",
             .layout = bindGroupLayout,
-            .entryCount = 1,
-            .entries = &entry
+            .entryCount = 2,
+            .entries = &entries[0]
         };
         computeBindGroup = device.CreateBindGroup(&bindGroupDesc);
     }
@@ -390,7 +432,8 @@ namespace grass
 
     void Engine::createUniformBuffer()
     {
-        camera.position = glm::vec3{10.0, 10.0, 10.0};
+        camera.position = glm::vec3{7.0, 3.0, 0.0};
+        camera.target = glm::vec3{0.0, 0.0, 0.0};
         camera.updateMatrix();
 
         wgpu::BufferDescriptor uniformBufferDesc = {
@@ -441,11 +484,11 @@ namespace grass
 
         pass.SetPipeline(computePipeline);
         pass.SetBindGroup(0, computeBindGroup);
-        pass.DispatchWorkgroups( density * AXIS_BOUND * 2,  density * AXIS_BOUND * 2, 1);
+        pass.DispatchWorkgroups(grassSettings.bladesPerSide, grassSettings.bladesPerSide, 1);
         pass.End();
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
-            .label = "Command buffer"
+            .label = "Compute operations command buffer"
         };
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
@@ -489,12 +532,12 @@ namespace grass
         pass.SetPipeline(grassPipeline);
         pass.SetBindGroup(0, grassBindGroup, 0, nullptr);
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
-        pass.Draw(vertexCount, numberOfBlades, 0, 0);
+        pass.Draw(vertexCount, grassSettings.totalBlades, 0, 0);
         pass.End();
 
         // Create command buffer
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
-            .label = "Command buffer"
+            .label = "Render operations command buffer"
         };
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
@@ -512,7 +555,7 @@ namespace grass
         {
             glfwPollEvents();
             draw();
-            frameNmber++;
+            frameNumber++;
         }
     }
 

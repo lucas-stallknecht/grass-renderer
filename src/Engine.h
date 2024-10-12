@@ -12,10 +12,23 @@
 
 namespace grass
 {
-    constexpr uint16_t WIDTH = 800;
-    constexpr uint16_t HEIGHT = 600;
-    constexpr float_t AXIS_BOUND = 5.0;
-    constexpr size_t density = 5;
+
+    struct GrassSettings
+    {
+        GrassSettings() { calculateTotal(); }
+        void calculateTotal()
+        {
+            bladesPerSide = sideLength * density * 2;
+            totalBlades = static_cast<size_t>(std::pow(bladesPerSide, 2));
+        }
+        size_t sideLength = 2;
+        size_t density = 5; // blades per unit
+        size_t bladesPerSide{};
+        size_t totalBlades{};
+    };
+
+    constexpr uint16_t WIDTH = 1400;
+    constexpr uint16_t HEIGHT = 800;
 
     class Engine
     {
@@ -47,7 +60,6 @@ namespace grass
         wgpu::Queue queue;
         wgpu::Surface surface;
         wgpu::TextureFormat surfaceFormat;
-        size_t numberOfBlades = std::pow(2 * AXIS_BOUND * density, 2);
 
         // Render
         wgpu::Buffer vertexBuffer;
@@ -60,12 +72,12 @@ namespace grass
         // Compute
         wgpu::ComputePipeline computePipeline;
         wgpu::Buffer bladesPositionBufferCompute;
+        wgpu::Buffer grassSettingsUniformBuffer;
         wgpu::BindGroup computeBindGroup;
 
         GLFWwindow* window = nullptr;
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
-        uint32_t frameNmber = 0;
-
-
+        uint32_t frameNumber = 0;
+        GrassSettings grassSettings{};
     };
 } // grass

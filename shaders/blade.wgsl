@@ -25,11 +25,12 @@ fn vertex_main(
     @location(2) texCoord: vec2<f32>
     ) -> VertexOut
 {
-    var modelMatrix = translate(bladePositions[instanceIndex].xyz);
+    let modelMatrix = translate(bladePositions[instanceIndex].xyz);
 
     var output : VertexOut;
     output.position = viewProj * modelMatrix * vec4(pos, 1.0);
-    output.color = vec3(saturate(dot(normal, vec3(0.6, 1.0, 0.5))));
+    let greenColor = vec3(0.459, 0.89, 0.333);
+    output.color = greenColor * mix(vec3f(0.3), vec3f(1.0), pos.y);
     return output;
 }
 
