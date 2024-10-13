@@ -204,6 +204,13 @@ namespace grass {
     }
 
 
+    void Renderer::updateUniforms(const Camera& camera)
+    {
+        queue->WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBuffer.GetSize());
+    }
+
+
+
     void Renderer::draw(const wgpu::TextureView& targetView, const GrassSettings& grassSettings)
     {
         wgpu::CommandEncoderDescriptor encoderDesc;
@@ -235,6 +242,7 @@ namespace grass {
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
         pass.Draw(vertexCount, grassSettings.totalBlades, 0, 0);
         pass.End();
+
 
         // Create command buffer
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {

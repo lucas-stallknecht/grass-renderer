@@ -15,6 +15,7 @@ namespace grass
         ~Renderer() = default;
         void init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera);
         void draw(const wgpu::TextureView& targetView, const GrassSettings& grassSettings);
+        void updateUniforms(const Camera& camera);
 
     private:
         void createVertexBuffer(const std::string& meshFilePath);

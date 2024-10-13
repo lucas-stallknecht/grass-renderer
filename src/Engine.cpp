@@ -16,13 +16,11 @@ namespace grass
         assert(loadedEngine == nullptr);
         loadedEngine = this;
 
+        keysArePressed = new bool[512]{false};
+
         initWindow();
         initWebgpu();
         configSurface();
-
-        camera.position = glm::vec3{0.2, 6.0, 0.0};
-        camera.target = glm::vec3{0.0, 0.0, 0.0};
-        camera.updateMatrix();
 
         auto d = std::make_shared<wgpu::Device>(device);
         auto q = std::make_shared<wgpu::Queue>(queue);
@@ -43,6 +41,24 @@ namespace grass
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         window = glfwCreateWindow(WIDTH, HEIGHT, "Grass renderer", nullptr, nullptr);
         assert(window && "Could not get window from GLFW!");
+
+        glfwSetWindowUserPointer(window, this);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+            auto *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));
+            engine->keyCallback(window, key);
+        };
+        auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
+            auto *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));
+            engine->mouseCallback(window, (float) xpos, (float) ypos);
+        };
+        auto mouseButtonCallback = [](GLFWwindow *window, int button, int action, int mods) {
+            auto *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));
+            engine->mouseButtonCallback(window, button, action);
+        };
+        glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetKeyCallback(window, keyCallback);
+        glfwSetMouseButtonCallback(window, mouseButtonCallback);
     }
 
 
@@ -148,6 +164,7 @@ namespace grass
 
         queue = device.GetQueue();
         assert(queue && "Could not get queue from device!");
+        
     }
 
 
@@ -191,12 +208,82 @@ namespace grass
     }
 
 
+    void Engine::keyCallback(GLFWwindow *window, int key) {
+        keysArePressed[key] = (glfwGetKey(window, key) == GLFW_PRESS);
+    }
+
+
+    void Engine::mouseCallback(GLFWwindow *window, float xpos, float ypos) {
+
+        // is right-clicked basically
+        if (!focused)
+            return;
+
+        // the mouse was not focused the frame before
+        if (firstMouse) {
+            lastMousePosition.x = xpos;
+            lastMousePosition.y = ypos;
+            firstMouse = false;
+        }
+        float xOffset = xpos - lastMousePosition.x;
+        float yOffset = lastMousePosition.y - ypos;
+
+        lastMousePosition.x = xpos;
+        lastMousePosition.y = ypos;
+
+        camera.updateCamDirection(xOffset, yOffset);
+    }
+
+
+    void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action) {
+        if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+            focused = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+        if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
+            focused = false;
+            firstMouse = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+
+    }
+
+
+    void Engine::keyInput() {
+        float deltaTime = glfwGetTime() - time;
+
+        if (keysArePressed['W'] && focused) {
+            camera.moveForward(deltaTime);
+        }
+        if (keysArePressed['S'] && focused) {
+            camera.moveBackward(deltaTime);
+        }
+        if (keysArePressed['A'] && focused) {
+            camera.moveLeft(deltaTime);
+        }
+        if (keysArePressed['D'] && focused) {
+            camera.moveRight(deltaTime);
+        }
+        if (keysArePressed['Q'] && focused) {
+            camera.moveDown(deltaTime);
+        }
+        if (keysArePressed[' '] && focused) {
+            camera.moveUp(deltaTime);
+        }
+
+        time += deltaTime;
+    }
+
+
     void Engine::run()
     {
         computeManager->compute(grassSettings);
         while (!glfwWindowShouldClose(window))
         {
+            keyInput();
             glfwPollEvents();
+            camera.updateMatrix();
+            renderer->updateUniforms(camera);
 
             wgpu::TextureView targetView = getNextSurfaceTextureView();
             if (!targetView) return;

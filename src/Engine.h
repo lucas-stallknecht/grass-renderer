@@ -30,10 +30,14 @@ namespace grass
         void configSurface();
         wgpu::TextureView getNextSurfaceTextureView();
 
+        void keyCallback(GLFWwindow* window, int key);
+        void mouseCallback(GLFWwindow* window, float xpos, float ypos);
+        void mouseButtonCallback(GLFWwindow *window,  int button, int action);
+        void keyInput();
+
         std::unique_ptr<Renderer> renderer;
         std::unique_ptr<ComputeManager> computeManager;
 
-        // Global
         wgpu::Instance instance;
         wgpu::Device device;
         wgpu::Queue queue;
@@ -43,6 +47,13 @@ namespace grass
         GLFWwindow* window = nullptr;
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNumber = 0;
+        float time = 0.0;
         GrassSettings grassSettings{};
+
+        // Controls
+        bool focused = false;
+        bool *keysArePressed;
+        bool firstMouse = true;
+        glm::vec2 lastMousePosition = glm::vec2();
     };
 } // grass
