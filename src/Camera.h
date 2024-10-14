@@ -5,6 +5,13 @@
 
 namespace grass
 {
+    struct CameraUniform
+    {
+        glm::mat4 viewProjMatrix;
+        glm::vec3 camDir;
+        float padding;
+    };
+
     class Camera
     {
         static constexpr float CAM_MOV_SPEED = 4.3f;

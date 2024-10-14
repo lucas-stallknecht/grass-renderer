@@ -15,8 +15,8 @@ namespace grass
             bladesPerSide = sideLength * density * 2;
             totalBlades = static_cast<size_t>(std::pow(bladesPerSide, 2));
         }
-        size_t sideLength = 2;
-        size_t density = 10; // blades per unit
+        size_t sideLength = 5;
+        size_t density = 14; // blades per unit
         size_t bladesPerSide{};
         size_t totalBlades{};
     };

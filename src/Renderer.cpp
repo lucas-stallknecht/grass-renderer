@@ -44,18 +44,21 @@ namespace grass {
         wgpu::BufferDescriptor uniformBufferDesc = {
             .label = "Camera uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(glm::mat4),
+            .size = sizeof(CameraUniform),
             .mappedAtCreation = false,
         };
 
         uniformBuffer = device->CreateBuffer(&uniformBufferDesc);
-        queue->WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBufferDesc.size);
+
+        CameraUniform camUniform = {camera.viewProjMatrix, camera.direction};
+        queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBufferDesc.size);
     }
 
 
     void Renderer::initRenderPipeline(const wgpu::Buffer& positionsBuffer)
     {
-        wgpu::ShaderModule simpleModule = getShaderModule(*device, "../shaders/blade.wgsl", "Triangle Module");
+        wgpu::ShaderModule vertModule = getShaderModule(*device, "../shaders/blade.vert.wgsl", "Vertex Module");
+        wgpu::ShaderModule fragModule = getShaderModule(*device, "../shaders/blade.frag.wgsl", "Frag Module");
         // Top level pipeline descriptor -> used to create the pipeline
         wgpu::RenderPipelineDescriptor pipelineDesc;
 
@@ -68,7 +71,7 @@ namespace grass {
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = sizeof(glm::mat4)
+                    .minBindingSize = sizeof(CameraUniform)
                 }
             },
             {
@@ -122,7 +125,7 @@ namespace grass {
             // this must target the first element of the array if there are multiple attributes
             .attributes = &vertAttrib[0]
         };
-        pipelineDesc.vertex.module = simpleModule;
+        pipelineDesc.vertex.module = vertModule;
         pipelineDesc.vertex.bufferCount = 1;
         pipelineDesc.vertex.buffers = &vertLayout;
 
@@ -132,7 +135,7 @@ namespace grass {
         colorTarget.format = surfaceFormat;
 
         wgpu::FragmentState fragmentState = {
-            .module = simpleModule,
+            .module = fragModule,
             .targetCount = 1,
             .targets = &colorTarget
         };
@@ -159,7 +162,7 @@ namespace grass {
                 .binding = 0,
                 .buffer = uniformBuffer,
                 .offset = 0,
-                .size = sizeof(glm::mat4)
+                .size = sizeof(CameraUniform)
             },
             {
                 .binding = 1,
@@ -206,7 +209,8 @@ namespace grass {
 
     void Renderer::updateUniforms(const Camera& camera)
     {
-        queue->WriteBuffer(uniformBuffer, 0, &camera.viewProjMatrix, uniformBuffer.GetSize());
+        CameraUniform camUniform = {camera.viewProjMatrix, camera.direction};
+        queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBuffer.GetSize());
     }
 
 

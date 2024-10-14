@@ -38,7 +38,7 @@ fn main(
     var pos: vec3f = vec3f(-grassSettings.sideLength + f32(workgroup_id.x) / grassSettings.density,
                             0.0,
                            -grassSettings.sideLength + f32(workgroup_id.y) / grassSettings.density);
-    let noiseValue = (noise2(pos.xz * vec2f(10.0)) - 0.5) * grassSettings.maxStep;
+    let noiseValue = (noise2(pos.xz * vec2f(grassSettings.density)) - 0.5) * grassSettings.maxStep;
     pos.x += noiseValue;
     pos.z += noiseValue;
 
