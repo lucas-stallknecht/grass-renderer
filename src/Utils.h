@@ -13,7 +13,8 @@ namespace grass
         glm::vec2 texCoord;
     };
 
-    wgpu::ShaderModule getShaderModule(wgpu::Device& device, std::string shaderPath, std::string moduleLabel);
+    wgpu::ShaderModule getShaderModule(const wgpu::Device& device, const std::string& shaderPath,
+                                       const std::string& moduleLabel, bool includeCommonStructs = true);
     void parseShaderFile(const std::string& filePath, std::string& sourceCode);
     bool loadMesh(const std::string& filePath, std::vector<VertexData>& verticesData);
 }

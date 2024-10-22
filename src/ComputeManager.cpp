@@ -1,6 +1,5 @@
 #include "ComputeManager.h"
 
-#include <glm/glm.hpp>
 #include "Utils.h"
 
 namespace grass
@@ -13,42 +12,38 @@ namespace grass
     wgpu::Buffer ComputeManager::init(const GrassSettings& grassSettings)
     {
         createBuffers(grassSettings);
-        initComputPipeline();
+        initComputPipeline(grassSettings);
 
-        return bladesPosBuffer;
+        return computeBuffer;
     }
 
 
     void ComputeManager::createBuffers(const GrassSettings& grassSettings)
     {
         wgpu::BufferDescriptor posBufferDesc = {
-            .label = "Positions storage buffer",
+            .label = "Grass blade instance info storage buffer",
             .usage = wgpu::BufferUsage::Storage,
-            .size = sizeof(glm::vec4) * grassSettings.totalBlades,
+            .size = sizeof(Blade) * grassSettings.totalBlades,
             .mappedAtCreation = false
         };
 
-        bladesPosBuffer = device->CreateBuffer(&posBufferDesc);
+        computeBuffer = device->CreateBuffer(&posBufferDesc);
 
         wgpu::BufferDescriptor settingsBufferDesc = {
             .label = "Grass settings uniform buffer",
             .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            .size = sizeof(glm::vec3),
+            .size = sizeof(grassSettings.grassUniform),
             .mappedAtCreation = false
         };
 
         grassSettingsUniformBuffer = device->CreateBuffer(&settingsBufferDesc);
-        const auto data = glm::vec3(grassSettings.sideLength,
-                                    grassSettings.density,
-                                    static_cast<float_t>(grassSettings.sideLength) * 2.0 / static_cast<float_t>(
-                                        grassSettings.bladesPerSide));
-        queue->WriteBuffer(grassSettingsUniformBuffer, 0, &data, grassSettingsUniformBuffer.GetSize());
+        queue->WriteBuffer(grassSettingsUniformBuffer, 0, &grassSettings.grassUniform, grassSettingsUniformBuffer.GetSize());
     }
 
 
-    void ComputeManager::initComputPipeline()
+    void ComputeManager::initComputPipeline(const GrassSettings& grassSettings)
     {
-        wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass_position.compute.wgsl",
+        wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass.compute.wgsl",
                                                            "Grass position compute module");
         wgpu::ComputePipelineDescriptor computePipelineDesc;
         computePipelineDesc.label = "Compute pipeline";
@@ -66,7 +61,7 @@ namespace grass
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = sizeof(glm::vec3)
+                    .minBindingSize = sizeof(grassSettings.grassUniform)
                 }
             },
             {
@@ -74,7 +69,7 @@ namespace grass
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Storage,
-                    .minBindingSize = bladesPosBuffer.GetSize()
+                    .minBindingSize = computeBuffer.GetSize()
                 }
             }
         };
@@ -105,9 +100,9 @@ namespace grass
             },
             {
                 .binding = 1,
-                .buffer = bladesPosBuffer,
+                .buffer = computeBuffer,
                 .offset = 0,
-                .size = bladesPosBuffer.GetSize(),
+                .size = computeBuffer.GetSize(),
             }
         };
 

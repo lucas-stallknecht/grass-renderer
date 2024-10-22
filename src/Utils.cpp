@@ -6,10 +6,20 @@
 #include <fstream>
 #include <sstream>
 
-wgpu::ShaderModule grass::getShaderModule(wgpu::Device& device, std::string shaderPath, std::string moduleLabel)
+#define COMMON_STRUCTS_PATH "../shaders/common_structs.wgsl"
+
+wgpu::ShaderModule grass::getShaderModule(const wgpu::Device& device, const std::string& shaderPath, const std::string& moduleLabel,
+    bool includeCommonStructs)
 {
     std::string shaderCode;
     parseShaderFile(shaderPath, shaderCode);
+
+    if(includeCommonStructs)
+    {
+        std::string structsCode;
+        parseShaderFile(COMMON_STRUCTS_PATH, structsCode);
+        shaderCode.insert(0, structsCode);
+    }
 
     wgpu::ShaderModuleWGSLDescriptor wgslDesc;
     wgslDesc.code = shaderCode.c_str();

@@ -1,29 +1,38 @@
 #pragma once
 
 #include <webgpu/webgpu_cpp.h>
+#include <glm/glm.hpp>
 #include "GrassSettings.h"
 
 
-namespace grass {
+namespace grass
+{
+    struct Blade
+    {
+        glm::vec3 position;
+        float_t size;
+        glm::vec2 uv;
+        float_t angle;
+        float_t padding;
+    };
 
-class ComputeManager {
+    class ComputeManager
+    {
+    public:
+        ComputeManager(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue);
+        wgpu::Buffer init(const GrassSettings& grassSettings);
+        void compute(const GrassSettings& grassSettings);
 
-public:
-    ComputeManager(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue);
-    wgpu::Buffer init(const GrassSettings& grassSettings);
-    void compute(const GrassSettings& grassSettings);
+    private:
+        void createBuffers(const GrassSettings& grassSettings);
+        void initComputPipeline(const GrassSettings& grassSettings);
 
-private:
-    void createBuffers(const GrassSettings& grassSettings);
-    void initComputPipeline();
+        std::shared_ptr<wgpu::Device> device;
+        std::shared_ptr<wgpu::Queue> queue;
 
-    std::shared_ptr<wgpu::Device> device;
-    std::shared_ptr<wgpu::Queue> queue;
-
-    wgpu::ComputePipeline computePipeline;
-    wgpu::Buffer bladesPosBuffer;
-    wgpu::Buffer grassSettingsUniformBuffer;
-    wgpu::BindGroup computeBindGroup;
-};
-
+        wgpu::ComputePipeline computePipeline;
+        wgpu::Buffer computeBuffer;
+        wgpu::Buffer grassSettingsUniformBuffer;
+        wgpu::BindGroup computeBindGroup;
+    };
 } // grass

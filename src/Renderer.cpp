@@ -3,18 +3,20 @@
 
 #include <iostream>
 
-namespace grass {
+namespace grass
+{
     Renderer::Renderer(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue,
-                 wgpu::TextureFormat surfaceFormat)
-    : device(std::move(device)), queue(std::move(queue)), surfaceFormat(surfaceFormat)
-    {}
+                       wgpu::TextureFormat surfaceFormat)
+        : device(std::move(device)), queue(std::move(queue)), surfaceFormat(surfaceFormat)
+    {
+    }
 
 
-    void Renderer::init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera)
+    void Renderer::init(const std::string& meshFilePath, const wgpu::Buffer& computeBuffer, const Camera& camera)
     {
         createVertexBuffer(meshFilePath);
         createUniformBuffer(camera);
-        initRenderPipeline(positionsBuffer);
+        initRenderPipeline(computeBuffer);
         createDepthTextureView();
     }
 
@@ -50,12 +52,17 @@ namespace grass {
 
         uniformBuffer = device->CreateBuffer(&uniformBufferDesc);
 
-        CameraUniform camUniform = {camera.viewProjMatrix, camera.direction};
+        CameraUniform camUniform = {
+            camera.viewMatrix,
+            camera.projMatrix,
+            camera.position,
+        };
+        camUniform.dir = camera.direction;
         queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBufferDesc.size);
     }
 
 
-    void Renderer::initRenderPipeline(const wgpu::Buffer& positionsBuffer)
+    void Renderer::initRenderPipeline(const wgpu::Buffer& computeBuffer)
     {
         wgpu::ShaderModule vertModule = getShaderModule(*device, "../shaders/blade.vert.wgsl", "Vertex Module");
         wgpu::ShaderModule fragModule = getShaderModule(*device, "../shaders/blade.frag.wgsl", "Frag Module");
@@ -79,7 +86,7 @@ namespace grass {
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .minBindingSize = positionsBuffer.GetSize()
+                    .minBindingSize = computeBuffer.GetSize()
                 }
             }
         };
@@ -166,9 +173,9 @@ namespace grass {
             },
             {
                 .binding = 1,
-                .buffer = positionsBuffer,
+                .buffer = computeBuffer,
                 .offset = 0,
-                .size = positionsBuffer.GetSize()
+                .size = computeBuffer.GetSize()
             }
         };
         wgpu::BindGroupDescriptor bindGroupDesc = {
@@ -209,10 +216,14 @@ namespace grass {
 
     void Renderer::updateUniforms(const Camera& camera)
     {
-        CameraUniform camUniform = {camera.viewProjMatrix, camera.direction};
+        CameraUniform camUniform = {
+            camera.viewMatrix,
+            camera.projMatrix,
+            camera.position,
+        };
+        camUniform.dir = camera.direction;
         queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBuffer.GetSize());
     }
-
 
 
     void Renderer::draw(const wgpu::TextureView& targetView, const GrassSettings& grassSettings)
@@ -258,5 +269,4 @@ namespace grass {
 
         device->Tick();
     }
-
 } // grass

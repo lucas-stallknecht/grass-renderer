@@ -1,17 +1,15 @@
 struct Camera {
-    viewProj: mat4x4f,
-    dir: vec3f,
+    view: mat4x4f,
+    proj: mat4x4f,
+    position: vec3f,
+    direction: vec3f,
 }
 
-struct VertexOut {
-    @builtin(position) position : vec4f,
-    @location(0) color: vec3f
-}
-
-const bladeForwardXZ = vec2f(1.0, 0.0);
+const lightDirection = vec3f(0.7, 1.0, 0.8);
+const bladeForwardXZ = vec3f(0.0, 0.0, 1.0);
 
 @group(0) @binding(0) var<uniform> cam: Camera;
-@group(0) @binding(1) var<storage, read> bladePositions: array<vec4f>;
+@group(0) @binding(1) var<storage, read> bladePositions: array<Blade>;
 
 
 fn translate(pos: vec3f) -> mat4x4f {
@@ -23,14 +21,23 @@ fn translate(pos: vec3f) -> mat4x4f {
     );
 }
 
+fn resizeY(h: f32) -> mat4x4f {
+    return mat4x4f(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, h, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
 fn rotateY(angle: f32) -> mat4x4f {
     let c = cos(angle);
     let s = sin(angle);
     return mat4x4f(
-        c, 0, s, 0,
-        0, 1, 0, 0,
-        -s, 0, c, 0,
-        0, 0, 0, 1
+        c, 0.0, s, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -s, 0.0, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
     );
 }
 
@@ -43,19 +50,29 @@ fn vertex_main(
     @location(2) texCoord: vec2f
     ) -> VertexOut
 {
-    let camXZDir = normalize(cam.dir.xz);
-    let bladePos = bladePositions[instanceIndex].xyz;
-
-    var angleDiff = atan2(camXZDir.y, camXZDir.x) - atan2(bladeForwardXZ.y, bladeForwardXZ.x);
+    let bladePos = bladePositions[instanceIndex].position;
 
     var modelMatrix = translate(bladePos);
-    modelMatrix *= rotateY(angleDiff);
+    modelMatrix *= rotateY(bladePositions[instanceIndex].angle);
+    modelMatrix *= resizeY(bladePositions[instanceIndex].size);
+    let roatedNormal = rotateY(bladePositions[instanceIndex].angle) * vec4f(normal, 0.0);
+
+    let worldSpacePos = modelMatrix * vec4f(pos, 1.0);
+    let camToVertVector = normalize(worldSpacePos.xyz - cam.position);
+
+    var viewDotNormal = dot(roatedNormal.xz, camToVertVector.xz);
+    var viewSpaceShiftFactor = smoothstep(0.5, 1.0, 1.0 - abs(viewDotNormal));
 
     var output: VertexOut;
-    output.position = cam.viewProj * modelMatrix * vec4f(pos, 1.0);
+    var mvPosition = cam.view * worldSpacePos;
+    mvPosition.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
+    output.position = cam.proj * mvPosition;
 
     let greenColor = vec3f(0.459, 0.89, 0.333);
-    output.color = greenColor * mix(vec3f(0.3), vec3f(1.0), pos.y);
+    let dirLight = abs(dot(lightDirection, roatedNormal.xyz));
+    output.color = greenColor * mix(vec3f(0.1), vec3f(0.9), pos.y);
+    // output.color = vec3f(viewSpaceThickenFactor);
+    // output.color = greenColor * (0.75 + 0.25 * dirLight);
 
     return output;
 }

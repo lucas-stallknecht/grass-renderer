@@ -7,9 +7,12 @@ namespace grass
 {
     struct CameraUniform
     {
-        glm::mat4 viewProjMatrix;
-        glm::vec3 camDir;
-        float padding;
+        glm::mat4 viewMatrix;
+        glm::mat4 projMatrix;
+        glm::vec3 pos;
+        float padding1;
+        glm::vec3 dir;
+        float padding2;
     };
 
     class Camera
@@ -28,9 +31,10 @@ namespace grass
         void moveDown(float deltaTime);
         void updateCamDirection(float xoffset, float yoffset);
 
-        glm::mat4 viewProjMatrix{};
-        glm::vec3 position{5.0, 2.0, 0.0};
-        glm::vec3 direction{-1.0 ,-0.4, 0};
+        glm::mat4 viewMatrix{};
+        glm::mat4 projMatrix{};
+        glm::vec3 position{4.4, 0.6, 0.0};
+        glm::vec3 direction{-1.0 ,-0.1, 0};
         float_t fov;
         float_t aspect;
         float_t near;

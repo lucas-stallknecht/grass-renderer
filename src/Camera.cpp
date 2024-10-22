@@ -15,9 +15,8 @@ namespace grass
 
     void Camera::updateMatrix()
     {
-        glm::mat4 proj = glm::perspective(glm::radians(fov), aspect, near, far);
-        glm::mat4 view = glm::lookAt(position, position + direction, glm::vec3{0.0, 1.0, 0.0});
-        viewProjMatrix = proj * view;
+        projMatrix = glm::perspective(glm::radians(fov), aspect, near, far);
+        viewMatrix = glm::lookAt(position, position + direction, glm::vec3{0.0, 1.0, 0.0});
     }
 
     void Camera::moveForward(float deltaTime) {
