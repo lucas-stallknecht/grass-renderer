@@ -226,11 +226,9 @@ namespace grass
     }
 
 
-    void Renderer::draw(const wgpu::TextureView& targetView, const GrassSettings& grassSettings)
+    void Renderer::draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                        const GrassSettings& grassSettings)
     {
-        wgpu::CommandEncoderDescriptor encoderDesc;
-        wgpu::CommandEncoder encoder = device->CreateCommandEncoder(&encoderDesc);
-
         // Encode render pass
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
             .view = targetView,
@@ -257,16 +255,5 @@ namespace grass
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
         pass.Draw(vertexCount, grassSettings.totalBlades, 0, 0);
         pass.End();
-
-
-        // Create command buffer
-        wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
-            .label = "Render operations command buffer"
-        };
-        // Submit the command buffer
-        wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
-        queue->Submit(1, &command);
-
-        device->Tick();
     }
 } // grass

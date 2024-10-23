@@ -4,6 +4,8 @@
 #include <cassert>
 #include <iostream>
 #include <glm/glm.hpp>
+#include <backends/imgui_impl_wgpu.h>
+#include <backends/imgui_impl_glfw.h>
 
 namespace grass
 {
@@ -30,6 +32,8 @@ namespace grass
 
         renderer = std::make_unique<Renderer>(d, q, surfaceFormat);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
+
+        initGUI();
     }
 
 
@@ -60,6 +64,23 @@ namespace grass
         glfwSetKeyCallback(window, keyCallback);
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
     }
+
+
+    void Engine::initGUI()
+    {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        io = &ImGui::GetIO();
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplGlfw_InitForOther(window, true);
+        ImGui_ImplWGPU_InitInfo info = {};
+        info.Device = device.Get();
+        info.NumFramesInFlight = 3;
+        info.RenderTargetFormat = static_cast<WGPUTextureFormat>(surfaceFormat);
+        ImGui_ImplWGPU_Init(&info);
+    }
+
 
 
     void Engine::initWebgpu()
@@ -275,6 +296,49 @@ namespace grass
     }
 
 
+    void Engine::updateGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
+    {
+        ImGui_ImplWGPU_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        {
+            ImGui::Begin("Grass field settings");
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
+            bool change = false;
+            if (ImGui::CollapsingHeader("Field settings")) {
+                change |= ImGui::SliderFloat("Size noise scale", &grassSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
+            }
+            if (ImGui::CollapsingHeader("Blades")) {
+                change |= ImGui::SliderFloat("Blade height", &grassSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                change |= ImGui::SliderFloat("Blade size noise delta factor", &grassSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
+            }
+
+            if (change) {
+                computeManager->compute(grassSettings);
+            }
+        }
+        ImGui::End();
+        ImGui::Render();
+
+        wgpu::RenderPassColorAttachment imGuiColorAttachment = {
+            .view = targetView,
+            .loadOp = wgpu::LoadOp::Load,
+            .storeOp = wgpu::StoreOp::Store,
+        };
+        wgpu::RenderPassDescriptor imGuiRenderPassDesc = {
+            .label = "ImGui Render Pass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &imGuiColorAttachment,
+        };
+        wgpu::RenderPassEncoder imGuiPass = encoder.BeginRenderPass(&imGuiRenderPassDesc);
+
+        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), imGuiPass.Get());
+        imGuiPass.End();
+
+    }
+
+
+
     void Engine::run()
     {
         computeManager->compute(grassSettings);
@@ -285,11 +349,25 @@ namespace grass
             camera.updateMatrix();
             renderer->updateUniforms(camera);
 
+            wgpu::CommandEncoderDescriptor encoderDesc;
+            wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
+
             wgpu::TextureView targetView = getNextSurfaceTextureView();
             if (!targetView) return;
-            renderer->draw(targetView, grassSettings);
-            surface.Present();
 
+            renderer->draw(encoder, targetView, grassSettings);
+            updateGUI(encoder, targetView);
+
+            // Create command buffer
+            wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
+                .label = "Render operations command buffer"
+            };
+            // Submit the command buffer
+            wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
+            queue.Submit(1, &command);
+            device.Tick();
+
+            surface.Present();
             frameNumber++;
         }
     }
@@ -297,6 +375,8 @@ namespace grass
 
     void Engine::cleanup()
     {
+        ImGui_ImplGlfw_Shutdown();
+        ImGui_ImplWGPU_Shutdown();
         glfwDestroyWindow(window);
         glfwTerminate();
     }

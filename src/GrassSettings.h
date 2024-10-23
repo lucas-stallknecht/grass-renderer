@@ -9,11 +9,14 @@ namespace grass
 
     struct GrassUniform
     {
+        // Field settings
         float_t sideLength = 3;
         float_t density = 10; // blades per unit
         float_t maxNoisePositionOffset = 0.2;
+        float_t sizeNoiseFrequency = 0.4;
+        // Single blades settings
         float_t bladeHeight = 1.0;
-        float_t bladeDeltaFactor = 0.3;
+        float_t sizeNoiseAmplitude = 0.3;
     };
 
     struct GrassSettings

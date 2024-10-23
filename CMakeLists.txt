@@ -39,6 +39,7 @@ set_target_properties(App PROPERTIES
 )
 
 add_subdirectory(dawn EXCLUDE_FROM_ALL)
+add_subdirectory( ${LIBS_DIR}/imgui)
 
 function(target_copy_webgpu_binaries Target)
     add_custom_command(
@@ -57,7 +58,7 @@ target_include_directories(App PRIVATE
         ${LIBS_DIR}/tinyobjloader
 )
 
-target_link_libraries(App PRIVATE dawn::webgpu_dawn glfw webgpu_glfw)
+target_link_libraries(App PRIVATE dawn::webgpu_dawn glfw webgpu_glfw imgui)
 target_copy_webgpu_binaries(App)
 
 

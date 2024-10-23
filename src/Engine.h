@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu_glfw.h>
 #include <dawn/native/DawnNative.h>
+#include <imgui.h>
 
 #include "GrassSettings.h"
 #include "Camera.h"
@@ -28,6 +29,8 @@ namespace grass
         void initWindow();
         void initWebgpu();
         void configSurface();
+        void initGUI();
+        void updateGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
         wgpu::TextureView getNextSurfaceTextureView();
 
         void keyCallback(GLFWwindow* window, int key);
@@ -45,6 +48,7 @@ namespace grass
         wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
 
         GLFWwindow* window = nullptr;
+        ImGuiIO *io = nullptr;
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNumber = 0;
         float time = 0.0;

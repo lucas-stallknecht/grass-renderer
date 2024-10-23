@@ -14,7 +14,8 @@ namespace grass
                  wgpu::TextureFormat surfaceFormat);
         ~Renderer() = default;
         void init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera);
-        void draw(const wgpu::TextureView& targetView, const GrassSettings& grassSettings);
+        void draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                  const GrassSettings& grassSettings);
         void updateUniforms(const Camera& camera);
 
     private:

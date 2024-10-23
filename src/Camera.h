@@ -33,8 +33,8 @@ namespace grass
 
         glm::mat4 viewMatrix{};
         glm::mat4 projMatrix{};
-        glm::vec3 position{4.4, 0.6, 0.0};
-        glm::vec3 direction{-1.0 ,-0.1, 0};
+        glm::vec3 position{7.4, 1.6, 0.0};
+        glm::vec3 direction{-1.0 ,-0.2, 0};
         float_t fov;
         float_t aspect;
         float_t near;

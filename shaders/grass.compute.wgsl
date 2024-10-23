@@ -97,8 +97,9 @@ struct GrassSettings {
     sideLength: f32,
     density: f32,
     maxNoisePositionOffset: f32,
+    sizeNoiseFrequency: f32,
     bladeHeight: f32,
-    bladeDeltaFactor: f32
+    sizeNoiseAmplitude: f32
 };
 
 
@@ -131,8 +132,11 @@ fn main(
     pos.x += n.x;
     pos.z += n.y;
 
-    let randomYSizeAddition = 0.75 * simplexNoise2(pos.xz * 0.4) + 0.25 * simplexNoise2(pos.xz * 0.8);
-    let ySize = grassSettings.bladeHeight + randomYSizeAddition * grassSettings.bladeDeltaFactor;
+    var randomYSizeAddition = 0.75 * simplexNoise2(pos.xz * grassSettings.sizeNoiseFrequency)
+                            + 0.25 * simplexNoise2(pos.xz * grassSettings.sizeNoiseFrequency * 2.0);
+    // normalizing simplex noise
+    randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
+    let ySize = grassSettings.bladeHeight + randomYSizeAddition * grassSettings.sizeNoiseAmplitude;
 
     var blade: Blade;
     blade.position = pos;

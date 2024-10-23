@@ -1,6 +1,7 @@
 #include "ComputeManager.h"
 
 #include "Utils.h"
+#include <iostream>
 
 namespace grass
 {
@@ -37,7 +38,6 @@ namespace grass
         };
 
         grassSettingsUniformBuffer = device->CreateBuffer(&settingsBufferDesc);
-        queue->WriteBuffer(grassSettingsUniformBuffer, 0, &grassSettings.grassUniform, grassSettingsUniformBuffer.GetSize());
     }
 
 
@@ -118,6 +118,7 @@ namespace grass
 
     void ComputeManager::compute(const GrassSettings& grassSettings)
     {
+        queue->WriteBuffer(grassSettingsUniformBuffer, 0, &grassSettings.grassUniform, grassSettingsUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = device->CreateCommandEncoder(&encoderDesc);
 
@@ -135,7 +136,6 @@ namespace grass
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
         queue->Submit(1, &command);
-
         device->Tick();
     }
 } // grass
