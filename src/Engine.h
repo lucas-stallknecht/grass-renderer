@@ -52,7 +52,8 @@ namespace grass
         Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
         uint32_t frameNumber = 0;
         float time = 0.0;
-        GrassSettings grassSettings{};
+        GrassGenerationSettings grassGenSettings{};
+        GrassVertexSettingsUniforms grassVertSettings{};
 
         // Controls
         bool focused = false;

@@ -15,7 +15,8 @@ namespace grass
     void Renderer::init(const std::string& meshFilePath, const wgpu::Buffer& computeBuffer, const Camera& camera)
     {
         createVertexBuffer(meshFilePath);
-        createUniformBuffer(camera);
+        createUniformBuffers(camera);
+        createBladeTextures();
         initRenderPipeline(computeBuffer);
         createDepthTextureView();
     }
@@ -29,6 +30,7 @@ namespace grass
             std::cerr << "Could not load geometry!" << std::endl;
         }
 
+
         vertexCount = verticesData.size();
         wgpu::BufferDescriptor bufferDesc{
             .label = "Blade of grass vertex buffer",
@@ -41,24 +43,32 @@ namespace grass
     }
 
 
-    void Renderer::createUniformBuffer(const Camera& camera)
+    void Renderer::createUniformBuffers(const Camera& camera)
     {
-        wgpu::BufferDescriptor uniformBufferDesc = {
+        wgpu::BufferDescriptor camUniformBufferDesc = {
             .label = "Camera uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
             .size = sizeof(CameraUniform),
             .mappedAtCreation = false,
         };
+        camUniformBuffer = device->CreateBuffer(&camUniformBufferDesc);
 
-        uniformBuffer = device->CreateBuffer(&uniformBufferDesc);
-
-        CameraUniform camUniform = {
-            camera.viewMatrix,
-            camera.projMatrix,
-            camera.position,
+        wgpu::BufferDescriptor settingsUniformBufferDesc = {
+            .label = "Settings uniform buffer",
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
+            .size = sizeof(GrassVertexSettingsUniforms),
+            .mappedAtCreation = false,
         };
-        camUniform.dir = camera.direction;
-        queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBufferDesc.size);
+        settingsUniformBuffer = device->CreateBuffer(&settingsUniformBufferDesc);
+    }
+
+
+    void Renderer::createBladeTextures()
+    {
+        normalTexture = loadTexture("../assets/blade_normal.png", *device, *queue);
+
+        wgpu::SamplerDescriptor samplerDesc = {};
+        textureSampler = device->CreateSampler(&samplerDesc);
     }
 
 
@@ -70,19 +80,53 @@ namespace grass
         wgpu::RenderPipelineDescriptor pipelineDesc;
 
 
-        // --- Uniform binding ---
-        // This is basically a entry (binding at a certain location within a group)
-        wgpu::BindGroupLayoutEntry entryLayouts[2] = {
+        // --- Uniform and storage Bindings ---
+
+        // Global uniforms bind group layout (Cam + others globals)
+        wgpu::BindGroupLayoutEntry globalEntryLayouts[4] = {
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = sizeof(CameraUniform)
+                    .minBindingSize = camUniformBuffer.GetSize()
                 }
             },
             {
                 .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .minBindingSize = settingsUniformBuffer.GetSize()
+                }
+            },
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                .texture = {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D
+                },
+            },
+            {
+                .binding = 3,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                .sampler = {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                }
+            }
+        };
+        wgpu::BindGroupLayoutDescriptor globalBindGroupLayoutDesc = {
+            .label = "Global uniforms bind group layout",
+            .entryCount = 4,
+            .entries = &globalEntryLayouts[0]
+        };
+        wgpu::BindGroupLayout globalBindGroupLayout = device->CreateBindGroupLayout(&globalBindGroupLayoutDesc);
+
+        // SSBO bind group layout (compute buffer)
+        wgpu::BindGroupLayoutEntry storageEntryLayouts[2] = {
+            {
+                .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
@@ -90,18 +134,18 @@ namespace grass
                 }
             }
         };
-
-        // This describes the whole group
-        wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
-            .entryCount = 2,
-            .entries = &entryLayouts[0]
+        wgpu::BindGroupLayoutDescriptor storageBindGroupLayoutDesc = {
+            .label = "Storage bind group layout",
+            .entryCount = 1,
+            .entries = &storageEntryLayouts[0]
         };
-        wgpu::BindGroupLayout bindGroupLayout = device->CreateBindGroupLayout(&bindGroupLayoutDesc);
+        wgpu::BindGroupLayout storageBindGroupLayout = device->CreateBindGroupLayout(&storageBindGroupLayoutDesc);
 
-        // This describe the groupS if there are multiple
+
+        wgpu::BindGroupLayout bindGroupLayouts[2] = {globalBindGroupLayout, storageBindGroupLayout};
         wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &bindGroupLayout
+            .bindGroupLayoutCount = 2,
+            .bindGroupLayouts = &bindGroupLayouts[0]
         };
         wgpu::PipelineLayout pipelineLayout = device->CreatePipelineLayout(&lipelineLayoutDesc);
         pipelineDesc.layout = pipelineLayout;
@@ -161,30 +205,63 @@ namespace grass
         pipelineDesc.label = "Blade of grass pipeline";
         grassPipeline = device->CreateRenderPipeline(&pipelineDesc);
 
+        // TEMPORARY
+        wgpu::TextureViewDescriptor textureViewDesc = {
+            .format = normalTexture.GetFormat(),
+            .dimension = wgpu::TextureViewDimension::e2D,
+            .mipLevelCount = 1,
+            .arrayLayerCount = 1
+        };
+        wgpu::TextureView textureView = normalTexture.CreateView(&textureViewDesc);
+
 
         // --- Bind group ---
         // The "real" bindings between the buffer and the shader locs, not just the layout
-        wgpu::BindGroupEntry entries[2] = {
+        wgpu::BindGroupEntry globalEntries[4] = {
             {
                 .binding = 0,
-                .buffer = uniformBuffer,
+                .buffer = camUniformBuffer,
                 .offset = 0,
-                .size = sizeof(CameraUniform)
+                .size = camUniformBuffer.GetSize()
             },
             {
                 .binding = 1,
+                .buffer = settingsUniformBuffer,
+                .offset = 0,
+                .size = settingsUniformBuffer.GetSize()
+            },
+            {
+                .binding = 2,
+                .textureView = textureView,
+            },
+            {
+                .binding = 3,
+                .sampler = textureSampler,
+            }
+        };
+        wgpu::BindGroupDescriptor globalBindGroupDesc = {
+            .label = "Global uniforms bind group",
+            .layout = globalBindGroupLayout,
+            .entryCount = globalBindGroupLayoutDesc.entryCount,
+            .entries = &globalEntries[0]
+        };
+        globalBindGroup = device->CreateBindGroup(&globalBindGroupDesc);
+
+        wgpu::BindGroupEntry storageEntries[2] = {
+            {
+                .binding = 0,
                 .buffer = computeBuffer,
                 .offset = 0,
                 .size = computeBuffer.GetSize()
-            }
+            },
         };
-        wgpu::BindGroupDescriptor bindGroupDesc = {
-            .label = "Blade of grass bind group",
-            .layout = bindGroupLayout,
-            .entryCount = bindGroupLayoutDesc.entryCount,
-            .entries = &entries[0]
+        wgpu::BindGroupDescriptor storageBindGroupDesc = {
+            .label = "Storage bind group",
+            .layout = storageBindGroupLayout,
+            .entryCount = storageBindGroupLayoutDesc.entryCount,
+            .entries = &storageEntries[0]
         };
-        grassBindGroup = device->CreateBindGroup(&bindGroupDesc);
+        storageBindGroup = device->CreateBindGroup(&storageBindGroupDesc);
     }
 
 
@@ -209,25 +286,28 @@ namespace grass
             .arrayLayerCount = 1,
             .aspect = wgpu::TextureAspect::DepthOnly,
         };
-
         depthView = depthTexture.CreateView(&depthViewDesc);
     }
 
 
-    void Renderer::updateUniforms(const Camera& camera)
+    void Renderer::updateUniforms(const Camera& camera, GrassVertexSettingsUniforms& settingsUniforms,
+                                  float_t time)
     {
-        CameraUniform camUniform = {
+        CameraUniform camUniforms = {
             camera.viewMatrix,
             camera.projMatrix,
             camera.position,
         };
-        camUniform.dir = camera.direction;
-        queue->WriteBuffer(uniformBuffer, 0, &camUniform, uniformBuffer.GetSize());
+        camUniforms.dir = camera.direction;
+        queue->WriteBuffer(camUniformBuffer, 0, &camUniforms, camUniformBuffer.GetSize());
+
+        settingsUniforms.time = time;
+        queue->WriteBuffer(settingsUniformBuffer, 0, &settingsUniforms, settingsUniformBuffer.GetSize());
     }
 
 
     void Renderer::draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
-                        const GrassSettings& grassSettings)
+                        const GrassGenerationSettings& grassSettings)
     {
         // Encode render pass
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
@@ -251,7 +331,8 @@ namespace grass
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
         pass.SetPipeline(grassPipeline);
-        pass.SetBindGroup(0, grassBindGroup, 0, nullptr);
+        pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
+        pass.SetBindGroup(1, storageBindGroup, 0, nullptr);
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
         pass.Draw(vertexCount, grassSettings.totalBlades, 0, 0);
         pass.End();

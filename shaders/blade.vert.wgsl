@@ -5,11 +5,62 @@ struct Camera {
     direction: vec3f,
 }
 
-const lightDirection = vec3f(0.7, 1.0, 0.8);
-const bladeForwardXZ = vec3f(0.0, 0.0, 1.0);
+struct Settings {
+    windDirection: vec3f,
+    p1: f32,
+    lightDirection: vec3f,
+    p2: f32,
+    windFrequency: f32,
+    windStrength: f32,
+    time: f32,
+}
+
 
 @group(0) @binding(0) var<uniform> cam: Camera;
-@group(0) @binding(1) var<storage, read> bladePositions: array<Blade>;
+@group(0) @binding(1) var<uniform> settings: Settings;
+@group(1) @binding(0) var<storage, read> bladePositions: array<Blade>;
+const tangent: vec3f = vec3f(0.0, 1.0, 0.0);
+const bitangent: vec3f = vec3f(0.0, 0.0, 1.0);
+
+fn mod289(x: vec2f) -> vec2f {
+    return x - floor(x * (1. / 289.)) * 289.;
+}
+
+fn mod289_3(x: vec3f) -> vec3f {
+    return x - floor(x * (1. / 289.)) * 289.;
+}
+
+fn permute3(x: vec3f) -> vec3f {
+    return mod289_3(((x * 34.) + 1.) * x);
+}
+
+fn simplexNoise2(v: vec2f) -> f32 {
+    let C = vec4(
+        0.211324865405187, // (3.0-sqrt(3.0))/6.0
+        0.366025403784439, // 0.5*(sqrt(3.0)-1.0)
+        -0.577350269189626, // -1.0 + 2.0 * C.x
+        0.024390243902439 // 1.0 / 41.0
+    );
+    var i = floor(v + dot(v, C.yy));
+    let x0 = v - i + dot(i, C.xx);
+    var i1 = select(vec2(0., 1.), vec2(1., 0.), x0.x > x0.y);
+    var x12 = x0.xyxy + C.xxzz;
+    x12.x = x12.x - i1.x;
+    x12.y = x12.y - i1.y;
+    i = mod289(i);
+    var p = permute3(permute3(i.y + vec3(0., i1.y, 1.)) + i.x + vec3(0., i1.x, 1.));
+    var m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), vec3(0.));
+    m *= m;
+    m *= m;
+    let x = 2. * fract(p * C.www) - 1.;
+    let h = abs(x) - 0.5;
+    let ox = floor(x + 0.5);
+    let a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    let g = vec3(a0.x * x0.x + h.x * x0.y, a0.yz * x12.xz + h.yz * x12.yw);
+    return 130. * dot(m, g);
+}
+
 
 
 fn translate(pos: vec3f) -> mat4x4f {
@@ -41,6 +92,20 @@ fn rotateY(angle: f32) -> mat4x4f {
     );
 }
 
+fn ease(x: f32, n: f32)-> f32 {
+    return pow(x, n);
+}
+
+fn sway(p: ptr<function, vec4f>, height: f32) {
+    // Displace the worldPosition to create a wind effect
+    var f = settings.time * settings.windFrequency * settings.windDirection;
+    var windNoise = 0.5 + 0.5 * (
+        simplexNoise2((*p).xz * 0.2 - f.xz) * 0.7 +
+        simplexNoise2((*p).xz * 1.2 - f.xz) * 0.3
+    );
+    *p += vec4f(settings.windDirection, 0.0) * windNoise * ease(height, 3.0) * settings.windStrength;
+}
+
 
 @vertex
 fn vertex_main(
@@ -50,29 +115,47 @@ fn vertex_main(
     @location(2) texCoord: vec2f
     ) -> VertexOut
 {
+    // root position
     let bladePos = bladePositions[instanceIndex].position;
 
     var modelMatrix = translate(bladePos);
     modelMatrix *= rotateY(bladePositions[instanceIndex].angle);
     modelMatrix *= resizeY(bladePositions[instanceIndex].size);
-    let roatedNormal = rotateY(bladePositions[instanceIndex].angle) * vec4f(normal, 0.0);
 
-    let worldSpacePos = modelMatrix * vec4f(pos, 1.0);
-    let camToVertVector = normalize(worldSpacePos.xyz - cam.position);
+    var worldPos = modelMatrix * vec4f(pos, 1.0);
+    sway(&worldPos, pos.y);
 
-    var viewDotNormal = dot(roatedNormal.xz, camToVertVector.xz);
+    // -- Recalculating normal
+    var posPlusTangent = pos + 0.01 * tangent;
+    var worldPosPlusTangent = modelMatrix * vec4f(posPlusTangent, 1.0);
+    sway(&worldPosPlusTangent, posPlusTangent.y);
+    // --
+    var posPlusBitangent = pos + 0.01 * bitangent;
+    var worldPosPlusBitangent = modelMatrix * vec4f(posPlusBitangent, 1.0);
+    sway(&worldPosPlusBitangent, posPlusBitangent.y);
+    // --
+    var modifiedTangent = worldPosPlusTangent.xyz - worldPos.xyz;
+    var modifiedBitangent = worldPosPlusBitangent.xyz - worldPos.xyz;
+    var modifiedNormal = normalize(cross(modifiedTangent, modifiedBitangent));
+    let dirLight = abs(dot(settings.lightDirection, modifiedNormal.xyz));
+    // -------
+
+    let camToVertVector = normalize(worldPos.xyz - cam.position);
+    var viewDotNormal = dot(modifiedNormal.xz, camToVertVector.xz);
     var viewSpaceShiftFactor = smoothstep(0.5, 1.0, 1.0 - abs(viewDotNormal));
 
-    var output: VertexOut;
-    var mvPosition = cam.view * worldSpacePos;
-    mvPosition.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
-    output.position = cam.proj * mvPosition;
+    var mvPos = cam.view * worldPos;
+    mvPos.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
 
     let greenColor = vec3f(0.459, 0.89, 0.333);
-    let dirLight = abs(dot(lightDirection, roatedNormal.xyz));
-    output.color = greenColor * mix(vec3f(0.1), vec3f(0.9), pos.y);
-    // output.color = vec3f(viewSpaceThickenFactor);
-    // output.color = greenColor * (0.75 + 0.25 * dirLight);
+    let bladeColor = greenColor * mix(vec3f(0.1), vec3f(0.9), pos.y);
+    var fogFactor = 1.0 - pow(2.0, -pow(0.09 * distance(cam.position, worldPos.xyz), 2.0));
 
+    var output: VertexOut;
+    output.position = cam.proj * mvPos;
+    output.worldPosition = worldPos.xyz;
+    output.color = mix(bladeColor, vec3f(0.1), fogFactor);
+    // output.color = vec3f(dirLight);
+    output.texCoord = texCoord;
     return output;
 }

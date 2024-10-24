@@ -10,9 +10,9 @@ namespace grass
         glm::mat4 viewMatrix;
         glm::mat4 projMatrix;
         glm::vec3 pos;
-        float padding1;
+        float_t padding1;
         glm::vec3 dir;
-        float padding2;
+        float_t padding2;
     };
 
     class Camera
@@ -33,8 +33,8 @@ namespace grass
 
         glm::mat4 viewMatrix{};
         glm::mat4 projMatrix{};
-        glm::vec3 position{7.4, 1.6, 0.0};
-        glm::vec3 direction{-1.0 ,-0.2, 0};
+        glm::vec3 position{0.0, 1.5, 4.0};
+        glm::vec3 direction{0.0 ,-0.25, -1.0};
         float_t fov;
         float_t aspect;
         float_t near;

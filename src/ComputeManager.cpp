@@ -10,7 +10,7 @@ namespace grass
     {
     }
 
-    wgpu::Buffer ComputeManager::init(const GrassSettings& grassSettings)
+    wgpu::Buffer ComputeManager::init(const GrassGenerationSettings& grassSettings)
     {
         createBuffers(grassSettings);
         initComputPipeline(grassSettings);
@@ -19,7 +19,7 @@ namespace grass
     }
 
 
-    void ComputeManager::createBuffers(const GrassSettings& grassSettings)
+    void ComputeManager::createBuffers(const GrassGenerationSettings& grassSettings)
     {
         wgpu::BufferDescriptor posBufferDesc = {
             .label = "Grass blade instance info storage buffer",
@@ -27,7 +27,6 @@ namespace grass
             .size = sizeof(Blade) * grassSettings.totalBlades,
             .mappedAtCreation = false
         };
-
         computeBuffer = device->CreateBuffer(&posBufferDesc);
 
         wgpu::BufferDescriptor settingsBufferDesc = {
@@ -36,12 +35,11 @@ namespace grass
             .size = sizeof(grassSettings.grassUniform),
             .mappedAtCreation = false
         };
-
         grassSettingsUniformBuffer = device->CreateBuffer(&settingsBufferDesc);
     }
 
 
-    void ComputeManager::initComputPipeline(const GrassSettings& grassSettings)
+    void ComputeManager::initComputPipeline(const GrassGenerationSettings& grassSettings)
     {
         wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass.compute.wgsl",
                                                            "Grass position compute module");
@@ -116,7 +114,7 @@ namespace grass
     }
 
 
-    void ComputeManager::compute(const GrassSettings& grassSettings)
+    void ComputeManager::compute(const GrassGenerationSettings& grassSettings)
     {
         queue->WriteBuffer(grassSettingsUniformBuffer, 0, &grassSettings.grassUniform, grassSettingsUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
@@ -136,6 +134,5 @@ namespace grass
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
         queue->Submit(1, &command);
-        device->Tick();
     }
 } // grass

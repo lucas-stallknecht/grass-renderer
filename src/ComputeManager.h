@@ -20,12 +20,12 @@ namespace grass
     {
     public:
         ComputeManager(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue);
-        wgpu::Buffer init(const GrassSettings& grassSettings);
-        void compute(const GrassSettings& grassSettings);
+        wgpu::Buffer init(const GrassGenerationSettings& grassSettings);
+        void compute(const GrassGenerationSettings& grassSettings);
 
     private:
-        void createBuffers(const GrassSettings& grassSettings);
-        void initComputPipeline(const GrassSettings& grassSettings);
+        void createBuffers(const GrassGenerationSettings& grassSettings);
+        void initComputPipeline(const GrassGenerationSettings& grassSettings);
 
         std::shared_ptr<wgpu::Device> device;
         std::shared_ptr<wgpu::Queue> queue;

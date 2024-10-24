@@ -1,27 +1,28 @@
 #pragma once
 
 #include <cmath>
+#include <glm/glm.hpp>
 
 namespace grass
 {
     constexpr uint16_t WIDTH = 1400;
     constexpr uint16_t HEIGHT = 800;
 
-    struct GrassUniform
+    struct GrassComputeUniforms
     {
         // Field settings
-        float_t sideLength = 3;
+        float_t sideLength = 1;
         float_t density = 10; // blades per unit
         float_t maxNoisePositionOffset = 0.2;
-        float_t sizeNoiseFrequency = 0.4;
+        float_t sizeNoiseFrequency = 0.75;
         // Single blades settings
-        float_t bladeHeight = 1.0;
-        float_t sizeNoiseAmplitude = 0.3;
+        float_t bladeHeight = 0.9;
+        float_t sizeNoiseAmplitude = 0.4;
     };
 
-    struct GrassSettings
+    struct GrassGenerationSettings
     {
-        GrassSettings() { calculateTotal(); }
+        GrassGenerationSettings() { calculateTotal(); }
 
         void calculateTotal()
         {
@@ -30,8 +31,20 @@ namespace grass
             grassUniform.maxNoisePositionOffset = grassUniform.sideLength * 2.0f / static_cast<float>(bladesPerSide);
         }
 
-        GrassUniform grassUniform{};
+        GrassComputeUniforms grassUniform{};
         size_t bladesPerSide{};
         size_t totalBlades{};
+    };
+
+    struct GrassVertexSettingsUniforms
+    {
+        glm::vec3 windDirection = {1.0, 0.0, 0.0};
+        float_t p1;
+        glm::vec3 lightDirection = {0.1, 1.0, 0.5};
+        float_t p2;
+        float_t windFrequency = 0.6;
+        float_t windStrength = 0.5;
+        float_t time = 0.0;
+        float_t p3;
     };
 }

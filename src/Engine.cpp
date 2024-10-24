@@ -28,7 +28,7 @@ namespace grass
         auto q = std::make_shared<wgpu::Queue>(queue);
 
         computeManager = std::make_unique<ComputeManager>(d, q);
-        wgpu::Buffer computeBuffer = computeManager->init(grassSettings);
+        wgpu::Buffer computeBuffer = computeManager->init(grassGenSettings);
 
         renderer = std::make_unique<Renderer>(d, q, surfaceFormat);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
@@ -271,7 +271,7 @@ namespace grass
 
 
     void Engine::keyInput() {
-        float deltaTime = glfwGetTime() - time;
+        float deltaTime = io->DeltaTime;
 
         if (keysArePressed['W'] && focused) {
             camera.moveForward(deltaTime);
@@ -291,8 +291,6 @@ namespace grass
         if (keysArePressed[' '] && focused) {
             camera.moveUp(deltaTime);
         }
-
-        time += deltaTime;
     }
 
 
@@ -304,17 +302,23 @@ namespace grass
         {
             ImGui::Begin("Grass field settings");
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
-            bool change = false;
+            bool genChange = false;
             if (ImGui::CollapsingHeader("Field settings")) {
-                change |= ImGui::SliderFloat("Size noise scale", &grassSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
+                genChange |= ImGui::SliderFloat("Size noise scale", &grassGenSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
             }
             if (ImGui::CollapsingHeader("Blades")) {
-                change |= ImGui::SliderFloat("Blade height", &grassSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
-                change |= ImGui::SliderFloat("Blade size noise delta factor", &grassSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
+                genChange |= ImGui::SliderFloat("Height base", &grassGenSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                genChange |= ImGui::SliderFloat("Height delta", &grassGenSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }
 
-            if (change) {
-                computeManager->compute(grassSettings);
+            if (genChange) {
+                computeManager->compute(grassGenSettings);
+            }
+
+            if (ImGui::CollapsingHeader("Wind settings")) {
+                ImGui::SliderFloat3("Direction (don't touch y)", &grassVertSettings.windDirection.r, -1.0, 1.0, "%.1f");
+                ImGui::SliderFloat("Frequency", &grassVertSettings.windFrequency, 0.01, 2.0, "%.2f");
+                ImGui::SliderFloat("Strength", &grassVertSettings.windStrength, 0.01, 1.0, "%.2f");
             }
         }
         ImGui::End();
@@ -341,13 +345,14 @@ namespace grass
 
     void Engine::run()
     {
-        computeManager->compute(grassSettings);
+        computeManager->compute(grassGenSettings);
         while (!glfwWindowShouldClose(window))
         {
+            time += io->DeltaTime;
             keyInput();
             glfwPollEvents();
             camera.updateMatrix();
-            renderer->updateUniforms(camera);
+            renderer->updateUniforms(camera, grassVertSettings, time);
 
             wgpu::CommandEncoderDescriptor encoderDesc;
             wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
@@ -355,7 +360,7 @@ namespace grass
             wgpu::TextureView targetView = getNextSurfaceTextureView();
             if (!targetView) return;
 
-            renderer->draw(encoder, targetView, grassSettings);
+            renderer->draw(encoder, targetView, grassGenSettings);
             updateGUI(encoder, targetView);
 
             // Create command buffer
@@ -365,7 +370,6 @@ namespace grass
             // Submit the command buffer
             wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
             queue.Submit(1, &command);
-            device.Tick();
 
             surface.Present();
             frameNumber++;

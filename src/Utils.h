@@ -4,6 +4,7 @@
 #include <string>
 #include <glm/glm.hpp>
 
+
 namespace grass
 {
     struct VertexData
@@ -17,4 +18,6 @@ namespace grass
                                        const std::string& moduleLabel, bool includeCommonStructs = true);
     void parseShaderFile(const std::string& filePath, std::string& sourceCode);
     bool loadMesh(const std::string& filePath, std::vector<VertexData>& verticesData);
+    wgpu::Texture loadTexture(const std::string& path,
+        const wgpu::Device& device, const wgpu::Queue& queue);
 }

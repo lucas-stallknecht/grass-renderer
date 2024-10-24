@@ -2,6 +2,8 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -79,28 +81,79 @@ bool grass::loadMesh(const std::string& filePath, std::vector<VertexData>& verti
 
     const auto& shape = shapes[0]; // look at the first shape only
 
-    verticesData.resize(shape.mesh.indices.size());
-    for (size_t i = 0; i < shape.mesh.indices.size(); ++i) {
-        const tinyobj::index_t& idx = shape.mesh.indices[i];
+    size_t i = 0;
+    for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
+    {
+        const auto fv = size_t(shape.mesh.num_face_vertices[f]);
 
-        verticesData[i].position = {
-            attrib.vertices[3 * idx.vertex_index + 0],
-            attrib.vertices[3 * idx.vertex_index + 1],
-            attrib.vertices[3 * idx.vertex_index + 2]
-        };
+        // Loop over vertices in the face.
+        for (size_t v = 0; v < fv; v++) {
+            // access to vertex
+            VertexData vData = {};
+            tinyobj::index_t idx = shape.mesh.indices[i + v];
+            vData.position = {
+                attrib.vertices[3*size_t(idx.vertex_index)+0],
+                attrib.vertices[3*size_t(idx.vertex_index)+1],
+                attrib.vertices[3*size_t(idx.vertex_index)+2]
+            };
 
-        verticesData[i].normal = {
-            attrib.normals[3 * idx.normal_index + 0],
-            attrib.normals[3 * idx.normal_index + 1],
-            attrib.normals[3 * idx.normal_index + 2]
-        };
+            // Check if `normal_index` is zero or positive. negative = no normal data
+            if (idx.normal_index >= 0) {
+                vData.normal = {
+                    attrib.normals[3*size_t(idx.normal_index)+0],
+                    attrib.normals[3*size_t(idx.normal_index)+1],
+                    attrib.normals[3*size_t(idx.normal_index)+2]
+                };
+            }
 
-        verticesData[i].texCoord = {
-            attrib.texcoords[2 * idx.vertex_index + 0],
-            attrib.texcoords[2 * idx.vertex_index + 1],
-        };
+            // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+            if (idx.texcoord_index >= 0) {
+                vData.texCoord = {
+                    attrib.texcoords[2*size_t(idx.texcoord_index)+0],
+                    1.0 - attrib.texcoords[2*size_t(idx.texcoord_index)+1],
+                };
+            }
+            verticesData.push_back(vData);
+        }
+        i += fv;
     }
+
     return true;
+}
+
+wgpu::Texture grass::loadTexture(const std::string& path, const wgpu::Device& device,  const wgpu::Queue& queue)
+{
+    int width, height, channels;
+    unsigned char *pixelData = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    if (nullptr == pixelData) return nullptr;
+
+    wgpu::Extent3D textureSize = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 };
+
+    wgpu::TextureDescriptor textureDesc;
+    textureDesc.dimension = wgpu::TextureDimension::e2D;
+    textureDesc.format = wgpu::TextureFormat::RGBA8Unorm; // by convention for bmp, png and jpg file. Be careful with other formats.
+    textureDesc.mipLevelCount = 1;
+    textureDesc.sampleCount = 1;
+    textureDesc.size = textureSize;
+    textureDesc.usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats = nullptr;
+    wgpu::Texture texture = device.CreateTexture(&textureDesc);
+
+    wgpu::ImageCopyTexture dest = {
+        .texture = texture,
+        .origin = {0, 0, 0},
+    };
+    wgpu::TextureDataLayout source = {
+        .bytesPerRow = 4 * textureSize.width,
+        .rowsPerImage = textureSize.height
+    };
+
+    queue.WriteTexture(&dest, pixelData, 4 * width * height, &source, &textureSize);
+
+    stbi_image_free(pixelData);
+
+    return texture;
 }
 
 

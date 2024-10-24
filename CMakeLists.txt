@@ -56,6 +56,7 @@ endfunction()
 target_include_directories(App PRIVATE
         ${LIBS_DIR}
         ${LIBS_DIR}/tinyobjloader
+        ${LIBS_DIR}/stb
 )
 
 target_link_libraries(App PRIVATE dawn::webgpu_dawn glfw webgpu_glfw imgui)

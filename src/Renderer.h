@@ -15,12 +15,13 @@ namespace grass
         ~Renderer() = default;
         void init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera);
         void draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
-                  const GrassSettings& grassSettings);
-        void updateUniforms(const Camera& camera);
+                  const GrassGenerationSettings& grassSettings);
+        void updateUniforms(const Camera& camera, GrassVertexSettingsUniforms& settingsUniforms, float_t time);
 
     private:
         void createVertexBuffer(const std::string& meshFilePath);
-        void createUniformBuffer(const Camera& camera);
+        void createUniformBuffers(const Camera& camera);
+        void createBladeTextures();
         void createDepthTextureView();
         void initRenderPipeline(const wgpu::Buffer& positionsBuffer);
 
@@ -30,9 +31,13 @@ namespace grass
 
         wgpu::Buffer vertexBuffer;
         size_t vertexCount = 0;
-        wgpu::Buffer uniformBuffer;
+        wgpu::Buffer camUniformBuffer;
+        wgpu::Buffer settingsUniformBuffer;
         wgpu::RenderPipeline grassPipeline;
-        wgpu::BindGroup grassBindGroup;
+        wgpu::BindGroup globalBindGroup;
+        wgpu::BindGroup storageBindGroup;
         wgpu::TextureView depthView;
+        wgpu::Texture normalTexture;
+        wgpu::Sampler textureSampler;
     };
 } // grass
