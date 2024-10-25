@@ -86,7 +86,7 @@ namespace grass
         wgpu::BindGroupLayoutEntry globalEntryLayouts[4] = {
             {
                 .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
+                .visibility = wgpu::ShaderStage::Vertex |  wgpu::ShaderStage::Fragment,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
                     .minBindingSize = camUniformBuffer.GetSize()

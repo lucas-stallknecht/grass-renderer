@@ -11,7 +11,7 @@ namespace grass
     struct GrassComputeUniforms
     {
         // Field settings
-        float_t sideLength = 1;
+        float_t sideLength = 3;
         float_t density = 10; // blades per unit
         float_t maxNoisePositionOffset = 0.2;
         float_t sizeNoiseFrequency = 0.75;
@@ -40,7 +40,7 @@ namespace grass
     {
         glm::vec3 windDirection = {1.0, 0.0, 0.0};
         float_t p1;
-        glm::vec3 lightDirection = {0.1, 1.0, 0.5};
+        glm::vec3 lightDirection = {-0.1, 1.0, 0.0};
         float_t p2;
         float_t windFrequency = 0.6;
         float_t windStrength = 0.5;

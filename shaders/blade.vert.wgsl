@@ -1,21 +1,3 @@
-struct Camera {
-    view: mat4x4f,
-    proj: mat4x4f,
-    position: vec3f,
-    direction: vec3f,
-}
-
-struct Settings {
-    windDirection: vec3f,
-    p1: f32,
-    lightDirection: vec3f,
-    p2: f32,
-    windFrequency: f32,
-    windStrength: f32,
-    time: f32,
-}
-
-
 @group(0) @binding(0) var<uniform> cam: Camera;
 @group(0) @binding(1) var<uniform> settings: Settings;
 @group(1) @binding(0) var<storage, read> bladePositions: array<Blade>;
@@ -137,25 +119,25 @@ fn vertex_main(
     var modifiedTangent = worldPosPlusTangent.xyz - worldPos.xyz;
     var modifiedBitangent = worldPosPlusBitangent.xyz - worldPos.xyz;
     var modifiedNormal = normalize(cross(modifiedTangent, modifiedBitangent));
-    let dirLight = abs(dot(settings.lightDirection, modifiedNormal.xyz));
     // -------
 
     let camToVertVector = normalize(worldPos.xyz - cam.position);
     var viewDotNormal = dot(modifiedNormal.xz, camToVertVector.xz);
     var viewSpaceShiftFactor = smoothstep(0.5, 1.0, 1.0 - abs(viewDotNormal));
+    // Font and back faces have different normals
+    modifiedNormal *= -sign(dot(modifiedNormal, camToVertVector));
 
     var mvPos = cam.view * worldPos;
     mvPos.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
 
-    let greenColor = vec3f(0.459, 0.89, 0.333);
-    let bladeColor = greenColor * mix(vec3f(0.1), vec3f(0.9), pos.y);
-    var fogFactor = 1.0 - pow(2.0, -pow(0.09 * distance(cam.position, worldPos.xyz), 2.0));
+
+
 
     var output: VertexOut;
     output.position = cam.proj * mvPos;
-    output.worldPosition = worldPos.xyz;
-    output.color = mix(bladeColor, vec3f(0.1), fogFactor);
-    // output.color = vec3f(dirLight);
+    output.worldPosition = worldPos.xyz / worldPos.w;
     output.texCoord = texCoord;
+    output.normal = modifiedNormal;
+    output.height = pos.y;
     return output;
 }
