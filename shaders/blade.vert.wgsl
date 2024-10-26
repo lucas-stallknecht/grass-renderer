@@ -116,8 +116,8 @@ fn vertex_main(
     var worldPosPlusBitangent = modelMatrix * vec4f(posPlusBitangent, 1.0);
     sway(&worldPosPlusBitangent, posPlusBitangent.y);
     // --
-    var modifiedTangent = worldPosPlusTangent.xyz - worldPos.xyz;
-    var modifiedBitangent = worldPosPlusBitangent.xyz - worldPos.xyz;
+    var modifiedTangent = normalize(worldPosPlusTangent.xyz - worldPos.xyz);
+    var modifiedBitangent = normalize(worldPosPlusBitangent.xyz - worldPos.xyz);
     var modifiedNormal = normalize(cross(modifiedTangent, modifiedBitangent));
     // -------
 
@@ -125,12 +125,12 @@ fn vertex_main(
     var viewDotNormal = dot(modifiedNormal.xz, camToVertVector.xz);
     var viewSpaceShiftFactor = smoothstep(0.5, 1.0, 1.0 - abs(viewDotNormal));
     // Font and back faces have different normals
-    modifiedNormal *= -sign(dot(modifiedNormal, camToVertVector));
+    let inversion = -sign(dot(modifiedNormal, camToVertVector));
+    modifiedNormal *= inversion;
+    modifiedBitangent *= inversion;
 
     var mvPos = cam.view * worldPos;
-    mvPos.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
-
-
+    // mvPos.x += viewSpaceShiftFactor * sign(viewDotNormal) * pos.z * 0.5;
 
 
     var output: VertexOut;
@@ -139,5 +139,7 @@ fn vertex_main(
     output.texCoord = texCoord;
     output.normal = modifiedNormal;
     output.height = pos.y;
+    output.tangent = modifiedTangent;
+    output.bitangent = modifiedBitangent;
     return output;
 }

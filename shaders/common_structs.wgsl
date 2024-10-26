@@ -27,5 +27,7 @@ struct VertexOut {
     @location(0) worldPosition: vec3f,
     @location(1) texCoord: vec2f,
     @location(2) normal: vec3f,
-    @location(3) height: f32
+    @location(3) height: f32,
+    @location(4) tangent: vec3f,
+    @location(5) bitangent: vec3f
 }
