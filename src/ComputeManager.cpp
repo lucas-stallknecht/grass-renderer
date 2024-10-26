@@ -41,7 +41,7 @@ namespace grass
 
     void ComputeManager::initComputPipeline(const GrassGenerationSettings& grassSettings)
     {
-        wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass.compute.wgsl",
+        const wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass.compute.wgsl",
                                                            "Grass position compute module");
         wgpu::ComputePipelineDescriptor computePipelineDesc;
         computePipelineDesc.label = "Compute pipeline";

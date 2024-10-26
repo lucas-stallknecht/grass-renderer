@@ -6,8 +6,8 @@
 namespace grass
 {
     Renderer::Renderer(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue,
-                       wgpu::TextureFormat surfaceFormat)
-        : device(std::move(device)), queue(std::move(queue)), surfaceFormat(surfaceFormat)
+                       const uint16_t width, const uint16_t height, wgpu::TextureFormat surfaceFormat)
+        : device(std::move(device)), queue(std::move(queue)), size(wgpu::Extent2D{width, height}), surfaceFormat(surfaceFormat)
     {
     }
 
@@ -48,18 +48,26 @@ namespace grass
         wgpu::BufferDescriptor camUniformBufferDesc = {
             .label = "Camera uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(CameraUniform),
+            .size = sizeof(CameraUniformData),
             .mappedAtCreation = false,
         };
         camUniformBuffer = device->CreateBuffer(&camUniformBufferDesc);
 
-        wgpu::BufferDescriptor settingsUniformBufferDesc = {
-            .label = "Settings uniform buffer",
+        wgpu::BufferDescriptor bladeDynamicUniformBufferDesc = {
+            .label = "Blade : dynamic uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(GrassVertexSettingsUniforms),
+            .size = sizeof(BladeDynamicUniformData),
             .mappedAtCreation = false,
         };
-        settingsUniformBuffer = device->CreateBuffer(&settingsUniformBufferDesc);
+        bladeDynamicUniformBuffer = device->CreateBuffer(&bladeDynamicUniformBufferDesc);
+
+        wgpu::BufferDescriptor bladeStaticUniformBufferDesc = {
+            .label = "Blade : static uniform buffer",
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
+            .size = sizeof(BladeStaticUniformData),
+            .mappedAtCreation = false,
+        };
+        bladeStaticUniformBuffer = device->CreateBuffer(&bladeStaticUniformBufferDesc);
     }
 
 
@@ -83,7 +91,7 @@ namespace grass
         // --- Uniform and storage Bindings ---
 
         // Global uniforms bind group layout (Cam + others globals)
-        wgpu::BindGroupLayoutEntry globalEntryLayouts[4] = {
+        wgpu::BindGroupLayoutEntry globalEntryLayouts[5] = {
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex |  wgpu::ShaderStage::Fragment,
@@ -97,11 +105,19 @@ namespace grass
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = settingsUniformBuffer.GetSize()
+                    .minBindingSize = bladeDynamicUniformBuffer.GetSize()
                 }
             },
             {
                 .binding = 2,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .minBindingSize = bladeStaticUniformBuffer.GetSize()
+                }
+            },
+            {
+                .binding = 3,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .texture = {
                     .sampleType = wgpu::TextureSampleType::Float,
@@ -109,7 +125,7 @@ namespace grass
                 },
             },
             {
-                .binding = 3,
+                .binding = 4,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .sampler = {
                     .type = wgpu::SamplerBindingType::Filtering,
@@ -118,7 +134,7 @@ namespace grass
         };
         wgpu::BindGroupLayoutDescriptor globalBindGroupLayoutDesc = {
             .label = "Global uniforms bind group layout",
-            .entryCount = 4,
+            .entryCount = 5,
             .entries = &globalEntryLayouts[0]
         };
         wgpu::BindGroupLayout globalBindGroupLayout = device->CreateBindGroupLayout(&globalBindGroupLayoutDesc);
@@ -217,7 +233,7 @@ namespace grass
 
         // --- Bind group ---
         // The "real" bindings between the buffer and the shader locs, not just the layout
-        wgpu::BindGroupEntry globalEntries[4] = {
+        wgpu::BindGroupEntry globalEntries[5] = {
             {
                 .binding = 0,
                 .buffer = camUniformBuffer,
@@ -226,16 +242,22 @@ namespace grass
             },
             {
                 .binding = 1,
-                .buffer = settingsUniformBuffer,
+                .buffer = bladeDynamicUniformBuffer,
                 .offset = 0,
-                .size = settingsUniformBuffer.GetSize()
+                .size = bladeDynamicUniformBuffer.GetSize()
             },
             {
                 .binding = 2,
-                .textureView = textureView,
+                .buffer = bladeStaticUniformBuffer,
+                .offset = 0,
+                .size = bladeStaticUniformBuffer.GetSize()
             },
             {
                 .binding = 3,
+                .textureView = textureView,
+            },
+            {
+                .binding = 4,
                 .sampler = textureSampler,
             }
         };
@@ -270,7 +292,7 @@ namespace grass
         wgpu::TextureDescriptor depthTextureDesc = {
             .usage = wgpu::TextureUsage::RenderAttachment,
             .dimension = wgpu::TextureDimension::e2D,
-            .size = {WIDTH, HEIGHT, 1},
+            .size = {size.width, size.height, 1},
             .format = wgpu::TextureFormat::Depth24Plus,
             .mipLevelCount = 1,
             .sampleCount = 1,
@@ -290,10 +312,9 @@ namespace grass
     }
 
 
-    void Renderer::updateUniforms(const Camera& camera, GrassVertexSettingsUniforms& settingsUniforms,
-                                  float_t time)
+    void Renderer::updateDynamicUniforms(const Camera& camera, float time)
     {
-        CameraUniform camUniforms = {
+        CameraUniformData camUniforms = {
             camera.viewMatrix,
             camera.projMatrix,
             camera.position,
@@ -301,8 +322,13 @@ namespace grass
         camUniforms.dir = camera.direction;
         queue->WriteBuffer(camUniformBuffer, 0, &camUniforms, camUniformBuffer.GetSize());
 
-        settingsUniforms.time = time;
-        queue->WriteBuffer(settingsUniformBuffer, 0, &settingsUniforms, settingsUniformBuffer.GetSize());
+        queue->WriteBuffer(bladeDynamicUniformBuffer, 0, &time, bladeDynamicUniformBuffer.GetSize());
+    }
+
+
+    void Renderer::updateStaticUniforms(const BladeStaticUniformData& uniform)
+    {
+        queue->WriteBuffer(bladeStaticUniformBuffer, 0, &uniform, bladeStaticUniformBuffer.GetSize());
     }
 
 

@@ -18,6 +18,9 @@ namespace grass
     class Engine
     {
 
+    const uint16_t WIDTH = 1400;
+    const uint16_t HEIGHT = 800;
+
     public:
         static Engine& Get();
 
@@ -49,15 +52,15 @@ namespace grass
 
         GLFWwindow* window = nullptr;
         ImGuiIO *io = nullptr;
-        Camera camera{35.0, WIDTH / static_cast<float_t>(HEIGHT)};
+        Camera camera{35.0, static_cast<float>(WIDTH) / static_cast<float>(HEIGHT)};
         uint32_t frameNumber = 0;
         float time = 0.0;
-        GrassGenerationSettings grassGenSettings{};
-        GrassVertexSettingsUniforms grassVertSettings{};
+        GrassGenerationSettings genSettings{};
+        BladeStaticUniformData bladeSettings{};
 
         // Controls
         bool focused = false;
-        bool *keysArePressed;
+        bool *keysArePressed = nullptr;
         bool firstMouse = true;
         glm::vec2 lastMousePosition = glm::vec2();
     };

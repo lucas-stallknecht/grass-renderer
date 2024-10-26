@@ -7,7 +7,7 @@
 
 namespace grass
 {
-    Camera::Camera(float_t fov, float_t aspect, float_t near, float_t far) : fov(fov), aspect(aspect), near(near),
+    Camera::Camera(float fov, float aspect, float near, float far) : fov(fov), aspect(aspect), near(near),
                                                                               far(far)
     {
         updateMatrix();

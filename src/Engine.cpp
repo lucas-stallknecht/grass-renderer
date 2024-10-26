@@ -28,9 +28,9 @@ namespace grass
         auto q = std::make_shared<wgpu::Queue>(queue);
 
         computeManager = std::make_unique<ComputeManager>(d, q);
-        wgpu::Buffer computeBuffer = computeManager->init(grassGenSettings);
+        wgpu::Buffer computeBuffer = computeManager->init(genSettings);
 
-        renderer = std::make_unique<Renderer>(d, q, surfaceFormat);
+        renderer = std::make_unique<Renderer>(d, q, WIDTH, HEIGHT, surfaceFormat);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
 
         initGUI();
@@ -54,7 +54,7 @@ namespace grass
         };
         auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
             auto *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));
-            engine->mouseCallback(window, (float) xpos, (float) ypos);
+            engine->mouseCallback(window, static_cast<float>(xpos), static_cast<float>(ypos));
         };
         auto mouseButtonCallback = [](GLFWwindow *window, int button, int action, int mods) {
             auto *engine = static_cast<Engine *>(glfwGetWindowUserPointer(window));
@@ -300,28 +300,49 @@ namespace grass
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            ImGui::Begin("Grass field settings");
-            ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
+            ImGui::Begin("Generation settings");
+            ImGui::Text("Number of blades : %i", genSettings.totalBlades);
             bool genChange = false;
-            if (ImGui::CollapsingHeader("Field settings")) {
-                genChange |= ImGui::SliderFloat("Size noise scale", &grassGenSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
+            if (ImGui::CollapsingHeader("Field")) {
+                genChange |= ImGui::SliderFloat("Size noise scale", &genSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
             }
-            if (ImGui::CollapsingHeader("Blades")) {
-                genChange |= ImGui::SliderFloat("Height base", &grassGenSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
-                genChange |= ImGui::SliderFloat("Height delta", &grassGenSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
+            if (ImGui::CollapsingHeader("Height")) {
+                genChange |= ImGui::SliderFloat("Base", &genSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                genChange |= ImGui::SliderFloat("Delta", &genSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }
-
             if (genChange) {
-                computeManager->compute(grassGenSettings);
+                computeManager->compute(genSettings);
             }
+            ImGui::End();
 
-            if (ImGui::CollapsingHeader("Wind settings")) {
-                ImGui::SliderFloat3("Direction (don't touch y)", &grassVertSettings.windDirection.r, -1.0, 1.0, "%.1f");
-                ImGui::SliderFloat("Frequency", &grassVertSettings.windFrequency, 0.01, 2.0, "%.2f");
-                ImGui::SliderFloat("Strength", &grassVertSettings.windStrength, 0.01, 1.0, "%.2f");
+
+            ImGui::Begin("Blades settings");
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
+
+            bool bladeChange = false;
+            if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen)) {
+                bladeChange |= ImGui::SliderFloat3("Direction (don't touch y)", &bladeSettings.wind.r, -1.0, 1.0, "%.1f");
+                bladeChange |= ImGui::SliderFloat("Strength", &bladeSettings.wind.w, 0.01, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Frequency", &bladeSettings.windFrequency, 0.01, 2.0, "%.2f");
             }
+            if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+                bladeChange |= ImGui::SliderFloat3("Direction", &bladeSettings.lightDirection.r, -1.0, 1.0, "%.1f");
+                bladeChange |= ImGui::ColorEdit3("Color", &bladeSettings.lightCol.r, 0);
+            }
+            if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+                bladeChange |= ImGui::ColorEdit3("Blade Color", &bladeSettings.bladeCol.r, 0);
+                bladeChange |= ImGui::ColorEdit3("Specular Color", &bladeSettings.specularCol.r, 0);
+                bladeChange |= ImGui::SliderFloat("Ambient", &bladeSettings.ambientStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Diffuse", &bladeSettings.diffuseStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Wrap value", &bladeSettings.wrapValue, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Specular", &bladeSettings.specularStrength, 0.0, 1.0, "%.2f");
+            }
+            if (bladeChange) {
+                renderer->updateStaticUniforms(bladeSettings);
+            }
+            ImGui::End();
         }
-        ImGui::End();
+        ImGui::EndFrame();
         ImGui::Render();
 
         wgpu::RenderPassColorAttachment imGuiColorAttachment = {
@@ -345,14 +366,15 @@ namespace grass
 
     void Engine::run()
     {
-        computeManager->compute(grassGenSettings);
+        computeManager->compute(genSettings);
+        renderer->updateStaticUniforms(bladeSettings);
         while (!glfwWindowShouldClose(window))
         {
             time += io->DeltaTime;
             keyInput();
             glfwPollEvents();
             camera.updateMatrix();
-            renderer->updateUniforms(camera, grassVertSettings, time);
+            renderer->updateDynamicUniforms(camera, time);
 
             wgpu::CommandEncoderDescriptor encoderDesc;
             wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
@@ -360,7 +382,7 @@ namespace grass
             wgpu::TextureView targetView = getNextSurfaceTextureView();
             if (!targetView) return;
 
-            renderer->draw(encoder, targetView, grassGenSettings);
+            renderer->draw(encoder, targetView, genSettings);
             updateGUI(encoder, targetView);
 
             // Create command buffer

@@ -1,6 +1,6 @@
 struct Blade {
     position: vec3f,
-    size: f32,
+    height: f32,
     uv: vec2f,
     angle: f32,
 }
@@ -12,14 +12,17 @@ struct Camera {
     direction: vec3f,
 }
 
-struct Settings {
-    windDirection: vec3f,
-    p1: f32,
+struct BladeSettings {
+    wind: vec4f, // vec3 for direction, w for strength
     lightDirection: vec3f,
-    p2: f32,
     windFrequency: f32,
-    windStrength: f32,
-    time: f32,
+    lightCol: vec3f,
+    wrapValue: f32,
+    bladeCol: vec3f,
+    ambientStrength: f32,
+    specularCol: vec3f,
+    diffuseStrength: f32,
+    specularStrength: f32
 }
 
 struct VertexOut {

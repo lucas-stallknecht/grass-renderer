@@ -1,5 +1,4 @@
 // https://gist.github.com/munrocket/236ed5ba7e409b8bdf1ff6eca5dcdc39
-
 fn hash11(n: u32) -> u32 {
     var h = n * 747796405u + 2891336453u;
     h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
@@ -93,7 +92,7 @@ fn simplexNoise2(v: vec2f) -> f32 {
     return 130. * dot(m, g);
 }
 
-struct GrassSettings {
+struct GenSettings {
     sideLength: f32,
     density: f32,
     maxNoisePositionOffset: f32,
@@ -103,7 +102,7 @@ struct GrassSettings {
 };
 
 
-@group(0) @binding(0) var<uniform> grassSettings: GrassSettings;
+@group(0) @binding(0) var<uniform> genSettings: GenSettings;
 @group(0) @binding(1) var<storage, read_write> bladePositions: array<Blade>;
 
 @compute
@@ -118,29 +117,28 @@ fn main(
          workgroup_id.x +
          workgroup_id.y * num_workgroups.x +
          workgroup_id.z * num_workgroups.x * num_workgroups.y;
-
     let global_invocation_index = workgroup_index + local_invocation_index;
-
     if (global_invocation_index >= num_workgroups.x * num_workgroups.y) {
         return;
     }
 
-    var pos: vec3f = vec3f(-grassSettings.sideLength + f32(workgroup_id.x) / grassSettings.density,
+    // Chunk
+    var pos: vec3f = vec3f(-genSettings.sideLength + f32(workgroup_id.x) / genSettings.density,
                             0.0,
-                           -grassSettings.sideLength + f32(workgroup_id.y) / grassSettings.density);
-    let n = (valueNoise2(pos.xz * vec2f(grassSettings.density)) - 0.5) * grassSettings.maxNoisePositionOffset;
+                           -genSettings.sideLength + f32(workgroup_id.y) / genSettings.density);
+    let n = (valueNoise2(pos.xz * vec2f(genSettings.density)) - 0.5) * genSettings.maxNoisePositionOffset;
     pos.x += n.x;
     pos.z += n.y;
 
-    var randomYSizeAddition = 0.75 * simplexNoise2(pos.xz * grassSettings.sizeNoiseFrequency)
-                            + 0.25 * simplexNoise2(pos.xz * grassSettings.sizeNoiseFrequency * 2.0);
-    // normalizing simplex noise
+    var randomYSizeAddition = 0.75 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency)
+                            + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0);
+    // Normalizing simplex noise
     randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
-    let ySize = grassSettings.bladeHeight + randomYSizeAddition * grassSettings.sizeNoiseAmplitude;
+    let ySize = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
 
     var blade: Blade;
     blade.position = pos;
-    blade.size = ySize;
+    blade.height = ySize;
     blade.angle = rand11(f32(global_invocation_index)) * radians(360.0);
 
     bladePositions[global_invocation_index] = blade;

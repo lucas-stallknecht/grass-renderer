@@ -1,5 +1,6 @@
 @group(0) @binding(0) var<uniform> cam: Camera;
-@group(0) @binding(1) var<uniform> settings: Settings;
+@group(0) @binding(1) var<uniform> time: f32;
+@group(0) @binding(2) var<uniform> settings: BladeSettings;
 @group(1) @binding(0) var<storage, read> bladePositions: array<Blade>;
 const tangent: vec3f = vec3f(0.0, 1.0, 0.0);
 const bitangent: vec3f = vec3f(0.0, 0.0, 1.0);
@@ -80,12 +81,12 @@ fn ease(x: f32, n: f32)-> f32 {
 
 fn sway(p: ptr<function, vec4f>, height: f32) {
     // Displace the worldPosition to create a wind effect
-    var f = settings.time * settings.windFrequency * settings.windDirection;
+    var f = time * settings.windFrequency * settings.wind.xyz;
     var windNoise = 0.5 + 0.5 * (
         simplexNoise2((*p).xz * 0.2 - f.xz) * 0.7 +
         simplexNoise2((*p).xz * 1.2 - f.xz) * 0.3
     );
-    *p += vec4f(settings.windDirection, 0.0) * windNoise * ease(height, 3.0) * settings.windStrength;
+    *p += vec4f(settings.wind.xyz, 0.0) * windNoise * ease(height, 3.0) * settings.wind.w;
 }
 
 
@@ -97,12 +98,12 @@ fn vertex_main(
     @location(2) texCoord: vec2f
     ) -> VertexOut
 {
-    // root position
+    // Modify vertex position according to blade generation
     let bladePos = bladePositions[instanceIndex].position;
 
     var modelMatrix = translate(bladePos);
     modelMatrix *= rotateY(bladePositions[instanceIndex].angle);
-    modelMatrix *= resizeY(bladePositions[instanceIndex].size);
+    modelMatrix *= resizeY(bladePositions[instanceIndex].height);
 
     var worldPos = modelMatrix * vec4f(pos, 1.0);
     sway(&worldPos, pos.y);
@@ -124,7 +125,7 @@ fn vertex_main(
     let camToVertVector = normalize(worldPos.xyz - cam.position);
     var viewDotNormal = dot(modifiedNormal.xz, camToVertVector.xz);
     var viewSpaceShiftFactor = smoothstep(0.5, 1.0, 1.0 - abs(viewDotNormal));
-    // Font and back faces have different normals
+    // Font and back faces have different vectors
     let inversion = -sign(dot(modifiedNormal, camToVertVector));
     modifiedNormal *= inversion;
     modifiedBitangent *= inversion;

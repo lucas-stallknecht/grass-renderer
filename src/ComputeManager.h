@@ -10,10 +10,10 @@ namespace grass
     struct Blade
     {
         glm::vec3 position;
-        float_t size;
+        float size;
         glm::vec2 uv;
-        float_t angle;
-        float_t padding;
+        float angle;
+        float padding;
     };
 
     class ComputeManager

@@ -5,14 +5,14 @@
 
 namespace grass
 {
-    struct CameraUniform
+    struct CameraUniformData
     {
         glm::mat4 viewMatrix;
         glm::mat4 projMatrix;
         glm::vec3 pos;
-        float_t padding1;
+        float padding1;
         glm::vec3 dir;
-        float_t padding2;
+        float padding2;
     };
 
     class Camera
@@ -21,7 +21,7 @@ namespace grass
         static constexpr float CAM_VIEW_SPEED = 0.0007f;
 
     public:
-        Camera(float_t fov, float_t aspect, float_t near = 0.1, float_t far = 100.0);
+        Camera(float fov, float aspect, float near = 0.1, float far = 100.0);
         void updateMatrix();
         void moveForward(float deltaTime);
         void moveBackward(float deltaTime);
@@ -35,9 +35,9 @@ namespace grass
         glm::mat4 projMatrix{};
         glm::vec3 position{0.0, 1.5, 4.0};
         glm::vec3 direction{0.0 ,-0.25, -1.0};
-        float_t fov;
-        float_t aspect;
-        float_t near;
-        float_t far;
+        float fov;
+        float aspect;
+        float near;
+        float far;
     };
 } // grass
