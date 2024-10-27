@@ -3,6 +3,7 @@ struct Blade {
     height: f32,
     uv: vec2f,
     angle: f32,
+    idHash: f32
 }
 
 struct Camera {

@@ -12,6 +12,7 @@ namespace grass
         float density = 12; // blades per unit
         float maxNoisePositionOffset = 0.2;
         float sizeNoiseFrequency = 0.75;
+
         // Single blades settings
         float bladeHeight = 0.9;
         float sizeNoiseAmplitude = 0.4;
@@ -36,7 +37,7 @@ namespace grass
     struct BladeStaticUniformData
     {
         // vec3 direction + strength
-        glm::vec4 wind = {1.0, 0.0, 0.0, 0.5};
+        glm::vec4 wind = {1.0, 0.0, 0.0, 0.4};
 
         glm::vec3 lightDirection = {-0.7, 1.0, 0.3};
         float windFrequency = 0.6;

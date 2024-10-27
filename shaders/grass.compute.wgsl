@@ -136,10 +136,13 @@ fn main(
     randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
     let ySize = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
 
+    let rand = rand11(f32(global_invocation_index));
     var blade: Blade;
     blade.position = pos;
     blade.height = ySize;
-    blade.angle = rand11(f32(global_invocation_index)) * radians(360.0);
+    // This might change with clumps !
+    blade.angle = rand * radians(360.0);
+    blade.idHash = rand;
 
     bladePositions[global_invocation_index] = blade;
 

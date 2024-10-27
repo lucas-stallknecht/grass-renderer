@@ -79,14 +79,16 @@ fn ease(x: f32, n: f32)-> f32 {
     return pow(x, n);
 }
 
-fn sway(p: ptr<function, vec4f>, height: f32) {
+fn sway(p: ptr<function, vec4f>, vertexLocalY: f32, bladeHeight: f32, idHash: f32) {
     // Displace the worldPosition to create a wind effect
     var f = time * settings.windFrequency * settings.wind.xyz;
     var windNoise = 0.5 + 0.5 * (
-        simplexNoise2((*p).xz * 0.2 - f.xz) * 0.7 +
+        simplexNoise2((*p).xz * 0.2 - f.xz + (vertexLocalY * 0.25)) * 0.7 +
         simplexNoise2((*p).xz * 1.2 - f.xz) * 0.3
     );
-    *p += vec4f(settings.wind.xyz, 0.0) * windNoise * ease(height, 3.0) * settings.wind.w;
+    var swayFactor = mix(0.85, 1.0, idHash);
+    //                                                                    taller blades will sway more distance
+    *p += vec4f(settings.wind.xyz, 0.0) * windNoise * ease(vertexLocalY, 2.0) * (settings.wind.w * bladeHeight) * swayFactor;
 }
 
 
@@ -100,22 +102,24 @@ fn vertex_main(
 {
     // Modify vertex position according to blade generation
     let bladePos = bladePositions[instanceIndex].position;
+    let bladeHiehgt = bladePositions[instanceIndex].height;
+    let idHash =bladePositions[instanceIndex].idHash;
 
     var modelMatrix = translate(bladePos);
     modelMatrix *= rotateY(bladePositions[instanceIndex].angle);
-    modelMatrix *= resizeY(bladePositions[instanceIndex].height);
+    modelMatrix *= resizeY(bladeHiehgt);
 
     var worldPos = modelMatrix * vec4f(pos, 1.0);
-    sway(&worldPos, pos.y);
+    sway(&worldPos, pos.y, bladeHiehgt, idHash);
 
     // -- Recalculating normal
     var posPlusTangent = pos + 0.01 * tangent;
     var worldPosPlusTangent = modelMatrix * vec4f(posPlusTangent, 1.0);
-    sway(&worldPosPlusTangent, posPlusTangent.y);
+    sway(&worldPosPlusTangent, posPlusTangent.y, bladeHiehgt, idHash);
     // --
     var posPlusBitangent = pos + 0.01 * bitangent;
     var worldPosPlusBitangent = modelMatrix * vec4f(posPlusBitangent, 1.0);
-    sway(&worldPosPlusBitangent, posPlusBitangent.y);
+    sway(&worldPosPlusBitangent, posPlusBitangent.y, bladeHiehgt, idHash);
     // --
     var modifiedTangent = normalize(worldPosPlusTangent.xyz - worldPos.xyz);
     var modifiedBitangent = normalize(worldPosPlusBitangent.xyz - worldPos.xyz);
