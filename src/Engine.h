@@ -56,6 +56,7 @@ namespace grass
         uint32_t frameNumber = 0;
         float time = 0.0;
         GrassGenerationSettings genSettings{};
+        GrassMovUniformData movSettings{};
         BladeStaticUniformData bladeSettings{};
 
         // Controls

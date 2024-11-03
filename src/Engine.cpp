@@ -28,7 +28,7 @@ namespace grass
         auto q = std::make_shared<wgpu::Queue>(queue);
 
         computeManager = std::make_unique<ComputeManager>(d, q);
-        wgpu::Buffer computeBuffer = computeManager->init(genSettings);
+        wgpu::Buffer computeBuffer = computeManager->init(genSettings, {});
 
         renderer = std::make_unique<Renderer>(d, q, WIDTH, HEIGHT, surfaceFormat);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
@@ -304,14 +304,26 @@ namespace grass
             ImGui::Text("Number of blades : %i", genSettings.totalBlades);
             bool genChange = false;
             if (ImGui::CollapsingHeader("Field")) {
-                genChange |= ImGui::SliderFloat("Size noise scale", &genSettings.grassUniform.sizeNoiseFrequency, 0.05, 1.0, "%.2f");
+                genChange |= ImGui::SliderFloat("Size noise scale", &genSettings.grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
             }
             if (ImGui::CollapsingHeader("Height")) {
                 genChange |= ImGui::SliderFloat("Base", &genSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
                 genChange |= ImGui::SliderFloat("Delta", &genSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }
             if (genChange) {
-                computeManager->compute(genSettings);
+                computeManager->generate(genSettings);
+            }
+            ImGui::End();
+
+            ImGui::Begin("Wind and movement settings");
+            bool movChange = false;
+            if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen)) {
+                movChange |= ImGui::SliderFloat3("Direction (don't touch y)", &movSettings.wind.r, -1.0, 1.0, "%.1f");
+                movChange |= ImGui::SliderFloat("Strength", &movSettings.wind.w, 0.01, 1.0, "%.2f");
+                movChange |= ImGui::SliderFloat("Frequency", &movSettings.windFrequency, 0.01, 2.0, "%.2f");
+            }
+            if (movChange) {
+                computeManager->updateMovSettingsUniorm(movSettings);
             }
             ImGui::End();
 
@@ -320,11 +332,6 @@ namespace grass
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
 
             bool bladeChange = false;
-            if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen)) {
-                bladeChange |= ImGui::SliderFloat3("Direction (don't touch y)", &bladeSettings.wind.r, -1.0, 1.0, "%.1f");
-                bladeChange |= ImGui::SliderFloat("Strength", &bladeSettings.wind.w, 0.01, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Frequency", &bladeSettings.windFrequency, 0.01, 2.0, "%.2f");
-            }
             if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
                 bladeChange |= ImGui::SliderFloat3("Direction", &bladeSettings.lightDirection.r, -1.0, 1.0, "%.1f");
                 bladeChange |= ImGui::ColorEdit3("Color", &bladeSettings.lightCol.r, 0);
@@ -335,7 +342,7 @@ namespace grass
                 bladeChange |= ImGui::SliderFloat("Ambient", &bladeSettings.ambientStrength, 0.0, 1.0, "%.2f");
                 bladeChange |= ImGui::SliderFloat("Diffuse", &bladeSettings.diffuseStrength, 0.0, 1.0, "%.2f");
                 bladeChange |= ImGui::SliderFloat("Wrap value", &bladeSettings.wrapValue, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Specular", &bladeSettings.specularStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Specular", &bladeSettings.specularStrength, 0.0, 0.3, "%.3f");
             }
             if (bladeChange) {
                 renderer->updateStaticUniforms(bladeSettings);
@@ -366,7 +373,8 @@ namespace grass
 
     void Engine::run()
     {
-        computeManager->compute(genSettings);
+        computeManager->generate(genSettings);
+        computeManager->updateMovSettingsUniorm(movSettings);
         renderer->updateStaticUniforms(bladeSettings);
         while (!glfwWindowShouldClose(window))
         {
@@ -384,6 +392,7 @@ namespace grass
 
             renderer->draw(encoder, targetView, genSettings);
             updateGUI(encoder, targetView);
+            computeManager->computeMovement(genSettings, time);
 
             // Create command buffer
             wgpu::CommandBufferDescriptor cmdBufferDescriptor = {

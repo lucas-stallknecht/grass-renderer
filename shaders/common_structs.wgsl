@@ -1,9 +1,12 @@
 struct Blade {
-    position: vec3f,
-    height: f32,
+    c0: vec3f, // root
+    idHash: f32,
     uv: vec2f,
-    angle: f32,
-    idHash: f32
+    height: f32,
+    padding: f32,
+    c1: vec3f, // tip
+    c2: vec3f, // bendingControlPoint
+    facingDirection: vec3f,
 }
 
 struct Camera {
@@ -14,15 +17,13 @@ struct Camera {
 }
 
 struct BladeSettings {
-    wind: vec4f, // vec3 for direction, w for strength
-    lightDirection: vec3f,
-    windFrequency: f32,
     lightCol: vec3f,
     wrapValue: f32,
+    lightDirection: vec3f,
+    diffuseStrength: f32,
     bladeCol: vec3f,
     ambientStrength: f32,
     specularCol: vec3f,
-    diffuseStrength: f32,
     specularStrength: f32
 }
 
@@ -33,5 +34,5 @@ struct VertexOut {
     @location(2) normal: vec3f,
     @location(3) height: f32,
     @location(4) tangent: vec3f,
-    @location(5) bitangent: vec3f
+    @location(5) bitangent: vec3f,
 }

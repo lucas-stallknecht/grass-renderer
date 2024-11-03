@@ -102,8 +102,8 @@ struct GenSettings {
 };
 
 
-@group(0) @binding(0) var<uniform> genSettings: GenSettings;
-@group(0) @binding(1) var<storage, read_write> bladePositions: array<Blade>;
+@group(0) @binding(0) var<storage, read_write> bladePositions: array<Blade>;
+@group(1) @binding(0) var<uniform> genSettings: GenSettings;
 
 @compute
 @workgroup_size(1, 1, 1)
@@ -130,19 +130,20 @@ fn main(
     pos.x += n.x;
     pos.z += n.y;
 
-    var randomYSizeAddition = 0.75 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency)
-                            + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0);
+    var randomYSizeAddition = 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 0.25)
+                            + 0.5 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0)
+                            + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 4.0);
     // Normalizing simplex noise
     randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
     let ySize = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
 
-    let rand = rand11(f32(global_invocation_index));
+    let randValue = rand11(f32(global_invocation_index));
     var blade: Blade;
-    blade.position = pos;
+    blade.c0 = pos;
     blade.height = ySize;
     // This might change with clumps !
-    blade.angle = rand * radians(360.0);
-    blade.idHash = rand;
+    blade.facingDirection = vec3f(cos(randValue * radians(720.0)), 0.0, sin(randValue * radians(720.0)));
+    blade.idHash = randValue;
 
     bladePositions[global_invocation_index] = blade;
 

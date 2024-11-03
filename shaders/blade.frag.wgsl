@@ -20,7 +20,7 @@ fn fragment_main(
 
     // Convert texture tangent space to world space
     // Maybe overkill (cause we blend normal to up vector anyways) but needed for rounded normals
-    var tangentToWorld = mat3x3f(in.bitangent, in.tangent, in.normal);
+    var tangentToWorld = mat3x3f(in.tangent, in.bitangent, in.normal);
     var normal = textureSample(normalTexture, textureSampler, uv).rgb;
     normal = normal * 2.0 - 1.0;
     normal = normalize(tangentToWorld * normal);
@@ -35,7 +35,7 @@ fn fragment_main(
     var diffuseCol = settings.diffuseStrength * diff * settings.lightCol;
 
     // Blinn-Phong specular
-    var halfwayDir = normalize(settings.lightDirection - (in.worldPosition - cam.position));
+    var halfwayDir = normalize(settings.lightDirection - normalize((in.worldPosition - cam.position)));
     var spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
     var specCol = settings.specularStrength * spec * settings.specularCol;
 
@@ -45,6 +45,5 @@ fn fragment_main(
 
     var col = ((ambientCol + diffuseCol) * AO) * settings.bladeCol + specCol;
     col = mix(col, vec3f(0.1), fogFactor);
-
     return vec4f(col, 1.0);
 }

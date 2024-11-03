@@ -10,122 +10,274 @@ namespace grass
     {
     }
 
-    wgpu::Buffer ComputeManager::init(const GrassGenerationSettings& grassSettings)
+    wgpu::Buffer ComputeManager::init(const GrassGenerationSettings& genSettings,
+                                      const GrassMovUniformData& movSettings)
     {
-        createBuffers(grassSettings);
-        initComputPipeline(grassSettings);
+        createSharedBuffer(genSettings);
+        wgpu::BindGroupLayout sharedLayout = createSharedBindGroup();
+        createUniformBuffers(genSettings, movSettings);
+        initGenPipeline(genSettings, sharedLayout);
+        initMovPipeline(movSettings, sharedLayout);
 
         return computeBuffer;
     }
 
 
-    void ComputeManager::createBuffers(const GrassGenerationSettings& grassSettings)
+    void ComputeManager::createSharedBuffer(const GrassGenerationSettings& genSettings)
     {
-        wgpu::BufferDescriptor posBufferDesc = {
+        wgpu::BufferDescriptor sharedComputeBufferDesc = {
             .label = "Grass blade instance info storage buffer",
             .usage = wgpu::BufferUsage::Storage,
-            .size = sizeof(Blade) * grassSettings.totalBlades,
+            .size = sizeof(Blade) * genSettings.totalBlades,
             .mappedAtCreation = false
         };
-        computeBuffer = device->CreateBuffer(&posBufferDesc);
-
-        wgpu::BufferDescriptor settingsBufferDesc = {
-            .label = "Grass settings uniform buffer",
-            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            .size = sizeof(grassSettings.grassUniform),
-            .mappedAtCreation = false
-        };
-        grassSettingsUniformBuffer = device->CreateBuffer(&settingsBufferDesc);
+        computeBuffer = device->CreateBuffer(&sharedComputeBufferDesc);
     }
 
 
-    void ComputeManager::initComputPipeline(const GrassGenerationSettings& grassSettings)
+    wgpu::BindGroupLayout ComputeManager::createSharedBindGroup()
     {
-        const wgpu::ShaderModule computeModule = getShaderModule(*device, "../shaders/grass.compute.wgsl",
-                                                           "Grass position compute module");
-        wgpu::ComputePipelineDescriptor computePipelineDesc;
-        computePipelineDesc.label = "Compute pipeline";
+        wgpu::BindGroupLayoutEntry entryLayout = {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Compute,
+            .buffer = {
+                .type = wgpu::BufferBindingType::Storage,
+                .minBindingSize = computeBuffer.GetSize()
+            }
+        };
+        wgpu::BindGroupLayoutDescriptor sharedBindGroupLayoutDesc = {
+            .entryCount = 1,
+            .entries = &entryLayout
+        };
+        wgpu::BindGroupLayout sharedLayout = device->CreateBindGroupLayout(&sharedBindGroupLayoutDesc);
 
-        wgpu::ProgrammableStageDescriptor computeStageDesc = {
-            .module = computeModule,
+
+        wgpu::BindGroupEntry entry = {
+            .binding = 0,
+            .buffer = computeBuffer,
+            .offset = 0,
+            .size = computeBuffer.GetSize()
+        };
+
+        wgpu::BindGroupDescriptor sharedBindGroupDesc = {
+            .layout = sharedLayout,
+            .entryCount = 1,
+            .entries = &entry
+        };
+        sharedBindGroup = device->CreateBindGroup(&sharedBindGroupDesc);
+
+        return sharedLayout;
+    }
+
+
+    void ComputeManager::createUniformBuffers(const GrassGenerationSettings& genSettings,
+                                              const GrassMovUniformData& movUniformData)
+    {
+        wgpu::BufferDescriptor genSettingsBufferDesc = {
+            .label = "Gen settings uniform buffer",
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(genSettings.grassUniform),
+            .mappedAtCreation = false
+        };
+        genSettingsUniformBuffer = device->CreateBuffer(&genSettingsBufferDesc);
+
+        wgpu::BufferDescriptor movSettingsBufferDesc = {
+            .label = "Mov settings uniform buffer",
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(movUniformData),
+            .mappedAtCreation = false
+        };
+        movSettingsUniformBuffer = device->CreateBuffer(&movSettingsBufferDesc);
+        queue->WriteBuffer(movSettingsUniformBuffer, 0, &movUniformData, movSettingsUniformBuffer.GetSize());
+
+        wgpu::BufferDescriptor movDynamicBufferDesc = {
+            .label = "Mov dynamic uniform buffer",
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(float),
+            .mappedAtCreation = false
+        };
+        movDynamicUniformBuffer = device->CreateBuffer(&movDynamicBufferDesc);
+    }
+
+
+    void ComputeManager::initGenPipeline(const GrassGenerationSettings& genSettings,
+                                         const wgpu::BindGroupLayout& sharedLayout)
+    {
+        const wgpu::ShaderModule genModule = getShaderModule(*device, "../shaders/gen.compute.wgsl",
+                                                             "Grass generation compute module");
+        wgpu::ComputePipelineDescriptor genPipelineDesc;
+        genPipelineDesc.label = "Generation compute pipeline";
+
+        wgpu::ProgrammableStageDescriptor genStageDesc = {
+            .module = genModule,
             .entryPoint = "main"
         };
-        computePipelineDesc.compute = computeStageDesc;
+        genPipelineDesc.compute = genStageDesc;
 
 
-        wgpu::BindGroupLayoutEntry entryLayouts[2] = {
+        wgpu::BindGroupLayoutEntry genEntryLayout = {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Compute,
+            .buffer = {
+                .type = wgpu::BufferBindingType::Uniform,
+                .minBindingSize = sizeof(genSettings.grassUniform)
+            }
+        };
+        wgpu::BindGroupLayoutDescriptor genBindGroupLayoutDesc = {
+            .entryCount = 1,
+            .entries = &genEntryLayout
+        };
+        wgpu::BindGroupLayout genBindGroupLayout = device->CreateBindGroupLayout(&genBindGroupLayoutDesc);
+
+        wgpu::BindGroupLayout bindGroupLayouts[2] = {
+            sharedLayout, genBindGroupLayout
+        };
+
+        wgpu::PipelineLayoutDescriptor genPipelineLayoutDesc = {
+            .bindGroupLayoutCount = 2,
+            .bindGroupLayouts = &bindGroupLayouts[0]
+        };
+        genPipelineDesc.layout = device->CreatePipelineLayout(&genPipelineLayoutDesc);
+
+        genPipeline = device->CreateComputePipeline(&genPipelineDesc);
+
+
+        wgpu::BindGroupEntry genEntry =
+        {
+            .binding = 0,
+            .buffer = genSettingsUniformBuffer,
+            .offset = 0,
+            .size = genSettingsUniformBuffer.GetSize(),
+        };
+
+        wgpu::BindGroupDescriptor bindGroupDesc = {
+            .label = "Generation uniform bind group",
+            .layout = genBindGroupLayout,
+            .entryCount = 1,
+            .entries = &genEntry
+        };
+        genBindGroup = device->CreateBindGroup(&bindGroupDesc);
+    }
+
+
+    void ComputeManager::initMovPipeline(const GrassMovUniformData& movSettings,
+                                         const wgpu::BindGroupLayout& sharedLayout)
+    {
+        const wgpu::ShaderModule movModule = getShaderModule(*device, "../shaders/move.compute.wgsl",
+                                                             "Grass movement compute module");
+        wgpu::ComputePipelineDescriptor movPipelineDesc;
+        movPipelineDesc.label = "Movement compute pipeline";
+
+        wgpu::ProgrammableStageDescriptor movStageDesc = {
+            .module = movModule,
+            .entryPoint = "main"
+        };
+        movPipelineDesc.compute = movStageDesc;
+
+
+        wgpu::BindGroupLayoutEntry movEntryLayouts[2] = {
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = sizeof(grassSettings.grassUniform)
+                    .minBindingSize = sizeof(movSettings)
                 }
             },
             {
                 .binding = 1,
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer = {
-                    .type = wgpu::BufferBindingType::Storage,
-                    .minBindingSize = computeBuffer.GetSize()
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .minBindingSize = sizeof(float)
                 }
             }
         };
-
-
-        wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc = {
+        wgpu::BindGroupLayoutDescriptor movBindGroupLayoutDesc = {
             .entryCount = 2,
-            .entries = &entryLayouts[0]
+            .entries = &movEntryLayouts[0]
         };
-        wgpu::BindGroupLayout bindGroupLayout = device->CreateBindGroupLayout(&bindGroupLayoutDesc);
+        wgpu::BindGroupLayout movBindGroupLayout = device->CreateBindGroupLayout(&movBindGroupLayoutDesc);
 
-        wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &bindGroupLayout
+        wgpu::BindGroupLayout bindGroupLayouts[2] = {
+            sharedLayout, movBindGroupLayout
         };
-        wgpu::PipelineLayout pipelineLayout = device->CreatePipelineLayout(&pipelineLayoutDesc);
-        computePipelineDesc.layout = pipelineLayout;
 
-        computePipeline = device->CreateComputePipeline(&computePipelineDesc);
+        wgpu::PipelineLayoutDescriptor movPipelineLayoutDesc = {
+            .bindGroupLayoutCount = 2,
+            .bindGroupLayouts = &bindGroupLayouts[0]
+        };
+        movPipelineDesc.layout = device->CreatePipelineLayout(&movPipelineLayoutDesc);
 
+        movPipeline = device->CreateComputePipeline(&movPipelineDesc);
 
-        wgpu::BindGroupEntry entries[2] = {
+        wgpu::BindGroupEntry movEntries[2] = {
             {
                 .binding = 0,
-                .buffer = grassSettingsUniformBuffer,
+                .buffer = movSettingsUniformBuffer,
                 .offset = 0,
-                .size = grassSettingsUniformBuffer.GetSize(),
+                .size = movSettingsUniformBuffer.GetSize(),
             },
             {
                 .binding = 1,
-                .buffer = computeBuffer,
+                .buffer = movDynamicUniformBuffer,
                 .offset = 0,
-                .size = computeBuffer.GetSize(),
-            }
+                .size = movDynamicUniformBuffer.GetSize(),
+            },
         };
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
-            .label = "Compute bind group",
-            .layout = bindGroupLayout,
+            .label = "Movement uniform bind group",
+            .layout = movBindGroupLayout,
             .entryCount = 2,
-            .entries = &entries[0]
+            .entries = &movEntries[0]
         };
-        computeBindGroup = device->CreateBindGroup(&bindGroupDesc);
+        movBindGroup = device->CreateBindGroup(&bindGroupDesc);
     }
 
 
-    void ComputeManager::compute(const GrassGenerationSettings& grassSettings)
+    void ComputeManager::updateMovSettingsUniorm(const GrassMovUniformData& movSettings)
     {
-        queue->WriteBuffer(grassSettingsUniformBuffer, 0, &grassSettings.grassUniform, grassSettingsUniformBuffer.GetSize());
+        queue->WriteBuffer(movSettingsUniformBuffer, 0, &movSettings, movSettingsUniformBuffer.GetSize());
+    }
+
+
+    void ComputeManager::generate(const GrassGenerationSettings& genSettings)
+    {
+        queue->WriteBuffer(genSettingsUniformBuffer, 0, &genSettings.grassUniform, genSettingsUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = device->CreateCommandEncoder(&encoderDesc);
 
         wgpu::ComputePassDescriptor computePassDesc;
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&computePassDesc);
 
-        pass.SetPipeline(computePipeline);
-        pass.SetBindGroup(0, computeBindGroup);
-        pass.DispatchWorkgroups(grassSettings.bladesPerSide, grassSettings.bladesPerSide, 1);
+        pass.SetPipeline(genPipeline);
+        pass.SetBindGroup(0, sharedBindGroup);
+        pass.SetBindGroup(1, genBindGroup);
+        pass.DispatchWorkgroups(genSettings.bladesPerSide, genSettings.bladesPerSide, 1);
+        pass.End();
+
+        wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
+            .label = "Compute operations command buffer"
+        };
+        // Submit the command buffer
+        wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
+        queue->Submit(1, &command);
+    }
+
+    void ComputeManager::computeMovement(const GrassGenerationSettings& genSettings, float time)
+    {
+        queue->WriteBuffer(movDynamicUniformBuffer, 0, &time, movDynamicUniformBuffer.GetSize());
+        wgpu::CommandEncoderDescriptor encoderDesc;
+        wgpu::CommandEncoder encoder = device->CreateCommandEncoder(&encoderDesc);
+
+        wgpu::ComputePassDescriptor computePassDesc;
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&computePassDesc);
+
+        pass.SetPipeline(movPipeline);
+        pass.SetBindGroup(0, sharedBindGroup);
+        pass.SetBindGroup(1, movBindGroup);
+        pass.DispatchWorkgroups(genSettings.bladesPerSide, genSettings.bladesPerSide, 1);
         pass.End();
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
