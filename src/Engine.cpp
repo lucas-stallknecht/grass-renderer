@@ -303,10 +303,10 @@ namespace grass
             ImGui::Begin("Generation settings");
             ImGui::Text("Number of blades : %i", genSettings.totalBlades);
             bool genChange = false;
-            if (ImGui::CollapsingHeader("Field")) {
+            if (ImGui::CollapsingHeader("Field", ImGuiTreeNodeFlags_DefaultOpen)) {
                 genChange |= ImGui::SliderFloat("Size noise scale", &genSettings.grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
             }
-            if (ImGui::CollapsingHeader("Height")) {
+            if (ImGui::CollapsingHeader("Height", ImGuiTreeNodeFlags_DefaultOpen)) {
                 genChange |= ImGui::SliderFloat("Base", &genSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
                 genChange |= ImGui::SliderFloat("Delta", &genSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }

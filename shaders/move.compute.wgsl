@@ -5,15 +5,14 @@ struct MovSettings {
 
 // Sphercial collisions
 // https://www.cg.tuwien.ac.at/research/publications/2016/JAHRMANN-2016-IGR/JAHRMANN-2016-IGR-thesis.pdf
-//    var dist = distance(spherePos, (*p).xyz);
-//
-//    var toDisplaceT = sphereRadius - clamp(dist, 0.0, sphereRadius);
-//    var collisionT = normalize((*p).xyz - spherePos) * toDisplaceT;
-//    *p += vec4f(collisionT, 0.0);
+// https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf
 
 @group(0) @binding(0) var<storage, read_write> bladePositions: array<Blade>;
 @group(1) @binding(0) var<uniform> movSettings: MovSettings;
 @group(1) @binding(1) var<uniform> time: f32;
+
+const sphereRadius = 0.75;
+const up = vec3f(0.0, 1.0, 0.0);
 
 
 fn mod289(x: vec2f) -> vec2f {
@@ -55,6 +54,10 @@ fn simplexNoise2(v: vec2f) -> f32 {
     return 130. * dot(m, g);
 }
 
+fn calcSphereTranslation(p: vec3f, c: vec3f, r: f32) -> vec3f {
+    var dist = distance(c, p);
+    return min(dist - r, 0.0) * (c - p) / dist;
+}
 
 @compute
 @workgroup_size(1, 1, 1)
@@ -87,10 +90,24 @@ fn main(
     //                                               taller blades will sway more distance
     var tiltVec = movSettings.wind.xyz * windNoise * (movSettings.wind.w * height) * varianceFactor;
 
-    var c1 = c0 + tiltVec + vec3f(0.0, height, 0.0);
+    var c1 = c0 + tiltVec + height * up;
     // more tilted blades should bend more
-    var bendingFactor = 0.5 + 0.25 * smoothstep(0.0, height, length(tiltVec));
-    var c2 = c0 + vec3f(0.0, height * 0.75, 0.0);
+    var lproj = length(c1 - c0 - up * dot(c1 - c0, up));
+    var c2 = c0 + height * max(1.0 - lproj / height, 0.05 * max(lproj / height, 1.0)) * up;
+
+    // Sphere collision
+    let sphereCenter = vec3f( cos(time), sphereRadius + 0.5 *  sin(time), sin(time));
+    let d = distance(c0, sphereCenter);
+    if (d < height + sphereRadius) {
+        var m = 0.25 * c0 + 0.5 * c2 + 0.25 * c1;
+        c1 += calcSphereTranslation(c1, sphereCenter, sphereRadius) + 4.0 * calcSphereTranslation(m, sphereCenter, sphereRadius);
+    }
+
+    // Ground collision
+    c1 -= up * min(dot(up, c1 - c0), 0.0);
+    lproj = length(c1 - c0 - up * dot(c1 - c0, up));
+    c2 = c0 + height * max(1.0 - lproj / height, 0.05 * max(lproj / height, 1.0)) * up;
+
     bladePositions[global_invocation_index].c1 = c1;
     bladePositions[global_invocation_index].c2 = c2;
 

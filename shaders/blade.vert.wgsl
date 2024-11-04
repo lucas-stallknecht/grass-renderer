@@ -18,11 +18,11 @@ fn ease(x: f32, n: f32)-> f32 {
     return pow(x, n);
 }
 
-fn resizeY(h: f32) -> mat4x4f {
+fn resizeY(r: f32) -> mat4x4f {
     return mat4x4f(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, h, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
+        r, 0.0, 0.0, 0.0,
+        0.0, r, 0.0, 0.0,
+        0.0, 0.0, r, 0.0,
         0.0, 0.0, 0.0, 1.0
     );
 }
@@ -44,18 +44,20 @@ fn vertex_main(
     // Bobbing up and down gives a better swaying effect than just tilting uniformally
     c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (time + bobbingPhase));
 
-    var bezierPos = bezier(pos.y, blade.c0, c1, blade.c2);
-    // "Extruding along tangent"
-    var tangent = normalize(cross(-blade.facingDirection, vec3f(0.0, 1.0, 0.0)));
-    bezierPos += pos.z * tangent;
-
     // Conservation of length
     let L0 = distance(blade.c0, c1);
     let L1 = distance(blade.c0, blade.c2) + distance(blade.c2, c1);
     let L = (2.0 * L0 + L1) / 3.0;
     let r = blade.height / L;
 
-    var worldPos = resizeY(r) * vec4f(bezierPos, 1.0);
+    var c2 = blade.c0 + r * (blade.c2 - blade.c0);
+    c1 = c2 + r * (c1 - c2);
+
+    var bezierPos = bezier(pos.y, blade.c0, c1, blade.c2);
+    // "Extruding along tangent"
+    var tangent = normalize(cross(-blade.facingDirection, vec3f(0.0, 1.0, 0.0)));
+    bezierPos += pos.z * tangent;
+    var worldPos = vec4f(bezierPos, 1.0);
 
     var bitangent = normalize(dBezier(pos.y, blade.c0, c1, blade.c2));
     var modifiedNormal = normalize(cross(bitangent, tangent));
@@ -70,10 +72,9 @@ fn vertex_main(
     var viewSpaceShiftFactor = smoothstep(0.4, 1.0, abs(viewDotTangent));
     // We used to shift the vert in view space but this caused weird z-fighting. We do it in world space now.
     var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * 0.3;
-    worldPos.x += thicknessAmount * modifiedNormal.x;
-    worldPos.z += thicknessAmount * modifiedNormal.z;
+    // worldPos.x += thicknessAmount * modifiedNormal.x;
+    // worldPos.z += thicknessAmount * modifiedNormal.z;
     var mvPos = cam.view * worldPos;
-    // mvPos.x -= thicknessAmount * 0.1;
 
     var output: VertexOut;
     output.position = cam.proj * mvPos;

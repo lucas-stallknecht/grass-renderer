@@ -129,6 +129,9 @@ fn main(
     let n = (valueNoise2(pos.xz * vec2f(genSettings.density)) - 0.5) * genSettings.maxNoisePositionOffset;
     pos.x += n.x;
     pos.z += n.y;
+    let h =  0.75 * simplexNoise2(pos.xz * 0.075 + vec2f(10.5, 89.0)) +
+    0.25 * simplexNoise2(pos.xz * 0.3 + vec2f(10.5, 89.0));
+    pos.y = h;
 
     var randomYSizeAddition = 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 0.25)
                             + 0.5 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0)
