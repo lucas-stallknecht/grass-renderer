@@ -21,6 +21,7 @@ namespace grass
         glm::vec2 texCoord;
     };
 
+
     inline void parseShaderFile(const std::string& filePath, std::string& sourceCode)
     {
         std::ifstream shaderFile;
@@ -139,6 +140,7 @@ namespace grass
 
         return true;
     }
+
 
     inline wgpu::Texture loadTexture(const std::string& path, const wgpu::Device& device, const wgpu::Queue& queue)
     {

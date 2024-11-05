@@ -3,18 +3,14 @@
 
 namespace grass {
 
-    struct Context {
-        Context() { calculateTotal(); }
+    struct GlobalConfig {
+        GlobalConfig() { calculateTotal(); }
         void calculateTotal()
         {
             bladesPerSide = static_cast<size_t>(grassUniform.sideLength * grassUniform.density * 2);
             totalBlades = static_cast<size_t>(std::floor(std::pow(bladesPerSide, 2)));
             grassUniform.maxNoisePositionOffset = grassUniform.sideLength * 2.0f / static_cast<float>(bladesPerSide);
         }
-
-        wgpu::Device device;
-        wgpu::Queue queue;
-        wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
 
         GrassGenUniformData grassUniform{};
         GrassMovUniformData movUniform{};

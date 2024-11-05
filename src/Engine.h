@@ -10,7 +10,8 @@
 #include "Camera.h"
 #include "Renderer.h"
 #include "ComputeManager.h"
-#include "Context.h"
+#include "GlobalConfig.h"
+#include "GPUContext.h"
 
 
 namespace grass
@@ -30,12 +31,8 @@ namespace grass
 
     private:
         void initWindow();
-        void initWebgpu();
-        void configSurface();
         void initGUI();
-        void updateGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
-        wgpu::TextureView getNextSurfaceTextureView();
-
+        void updateGUI();
         void keyCallback(GLFWwindow* window, int key);
         void mouseCallback(GLFWwindow* window, float xpos, float ypos);
         void mouseButtonCallback(GLFWwindow *window,  int button, int action);
@@ -44,9 +41,7 @@ namespace grass
         std::unique_ptr<Renderer> renderer;
         std::unique_ptr<ComputeManager> computeManager;
 
-        wgpu::Instance instance;
-        wgpu::Surface surface;
-        std::shared_ptr<Context> ctx;
+        std::shared_ptr<GlobalConfig> config;
 
         GLFWwindow* window = nullptr;
         ImGuiIO *io = nullptr;

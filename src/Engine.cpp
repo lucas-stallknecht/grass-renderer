@@ -9,6 +9,8 @@
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
 
+#include "Mesh.h"
+
 namespace grass
 {
     Engine* loadedEngine = nullptr;
@@ -21,16 +23,15 @@ namespace grass
         loadedEngine = this;
 
         keysArePressed = new bool[512]{false};
-        ctx = std::make_shared<Context>();
+        config = std::make_shared<GlobalConfig>();
 
         initWindow();
-        initWebgpu();
-        configSurface();
+        GPUContext::getInstance(window)->configSurface(WIDTH, HEIGHT);
 
-        computeManager = std::make_unique<ComputeManager>(ctx);
+        computeManager = std::make_unique<ComputeManager>(config);
         wgpu::Buffer computeBuffer = computeManager->init();
 
-        renderer = std::make_unique<Renderer>(ctx, WIDTH, HEIGHT);
+        renderer = std::make_unique<Renderer>(config, WIDTH, HEIGHT);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
 
         initGUI();
@@ -75,156 +76,10 @@ namespace grass
 
         ImGui_ImplGlfw_InitForOther(window, true);
         ImGui_ImplWGPU_InitInfo info = {};
-        info.Device = ctx->device.Get();
+        info.Device = GPUContext::getInstance()->getDevice().Get();
         info.NumFramesInFlight = 3;
-        info.RenderTargetFormat = static_cast<WGPUTextureFormat>(ctx->surfaceFormat);
+        info.RenderTargetFormat = static_cast<WGPUTextureFormat>(GPUContext::getInstance()->getSurfaceFormat());
         ImGui_ImplWGPU_Init(&info);
-    }
-
-
-    void Engine::initWebgpu()
-    {
-        wgpu::InstanceDescriptor instanceDesc;
-        instanceDesc.features.timedWaitAnyEnable = true;
-        instance = wgpu::CreateInstance(&instanceDesc);
-        assert(instance && "Could not initialize WebGPU!");
-
-        surface = wgpu::glfw::CreateSurfaceForWindow(instance, window);
-        assert(surface && "Could not get Surface!");
-
-        wgpu::RequestAdapterOptions adapterOpts = {
-            .compatibleSurface = surface,
-            .powerPreference = wgpu::PowerPreference::HighPerformance,
-        };
-        wgpu::Adapter chosenAdapter;
-
-        wgpu::Future adapterFuture = instance.RequestAdapter(
-            &adapterOpts,
-            wgpu::CallbackMode::WaitAnyOnly,
-            [](wgpu::RequestAdapterStatus status, wgpu::Adapter adapter,
-               const char* message, wgpu::Adapter* userdata)
-            {
-                if (status != wgpu::RequestAdapterStatus::Success)
-                {
-                    fprintf(stderr, "Failed to request adapter: %d\n",
-                            status);
-                    if (message)
-                    {
-                        fprintf(stderr, "Message: %s\n", message);
-                    }
-                    return;
-                }
-                *userdata = std::move(adapter);
-            },
-            &chosenAdapter
-        );
-        instance.WaitAny(adapterFuture, UINT64_MAX);
-        assert(chosenAdapter && "Could not request the adapter!");
-
-
-        // Dawn error toggle
-        const char* toggles[] = {
-            "enable_immediate_error_handling"
-        };
-        wgpu::DawnTogglesDescriptor dawnTogglesDesc;
-        dawnTogglesDesc.disabledToggleCount = 0;
-        dawnTogglesDesc.enabledToggleCount = 1;
-        dawnTogglesDesc.enabledToggles = toggles;
-
-
-        wgpu::DeviceDescriptor deviceDesc;
-        deviceDesc.label = "Grass renderer device";
-        deviceDesc.requiredFeatureCount = 0;
-        deviceDesc.requiredLimits = nullptr;
-        deviceDesc.nextInChain = &dawnTogglesDesc;
-        deviceDesc.SetDeviceLostCallback(
-            wgpu::CallbackMode::AllowSpontaneous,
-            [](const wgpu::Device& device, wgpu::DeviceLostReason reason, const char* message)
-            {
-                fprintf(stderr, "Device lost: reason: %d\n", reason);
-                if (message) fprintf(stderr, "message: %s\n\n", message);
-            }
-        );
-        deviceDesc.SetUncapturedErrorCallback(
-            [](const wgpu::Device& device, wgpu::ErrorType type, const char* message)
-            {
-                fprintf(stderr, "Uncaptured device error: type: %d\n", type);
-                if (message) fprintf(stderr, "message: %s\n\n", message);
-            }
-        );
-
-
-        wgpu::Future deviceFuture = chosenAdapter.RequestDevice(
-            &deviceDesc,
-            wgpu::CallbackMode::WaitAnyOnly,
-            [](wgpu::RequestDeviceStatus status, wgpu::Device device,
-               const char* message, wgpu::Device* userdata)
-            {
-                if (status != wgpu::RequestDeviceStatus::Success)
-                {
-                    fprintf(stderr, "Failed to request device: %d\n",
-                            status);
-                    if (message)
-                    {
-                        fprintf(stderr, "Message: %s\n", message);
-                    }
-                    return;
-                }
-                *userdata = std::move(device);
-            },
-            &ctx->device
-        );
-        instance.WaitAny(deviceFuture, UINT64_MAX);
-        assert(ctx->device && "Could not request device!");
-
-        wgpu::SurfaceCapabilities capabilities;
-        surface.GetCapabilities(chosenAdapter, &capabilities);
-        ctx->surfaceFormat = capabilities.formats[0];
-        assert(ctx->surfaceFormat != wgpu::TextureFormat::Undefined && "Wrong surface format!");
-
-        ctx->queue = ctx->device.GetQueue();
-        assert(ctx->queue && "Could not get queue from device!");
-        
-    }
-
-
-    void Engine::configSurface()
-    {
-        wgpu::SurfaceConfiguration config = {
-            .device = ctx->device,
-            .format = ctx->surfaceFormat,
-            .usage = wgpu::TextureUsage::RenderAttachment,
-            .alphaMode = wgpu::CompositeAlphaMode::Auto,
-            .width = WIDTH,
-            .height = HEIGHT,
-            .presentMode = wgpu::PresentMode::Fifo,
-        };
-        surface.Configure(&config);
-    }
-
-
-    wgpu::TextureView Engine::getNextSurfaceTextureView()
-    {
-        wgpu::SurfaceTexture surfaceTexture;
-        surface.GetCurrentTexture(&surfaceTexture);
-
-        if (surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Success)
-        {
-            std::cerr << "Failed to get current texture from the surface: " << std::endl;
-            return nullptr;
-        }
-
-        wgpu::TextureViewDescriptor viewDescriptor = {
-            .label = "Surface texture view",
-            .format = ctx->surfaceFormat,
-            .dimension = wgpu::TextureViewDimension::e2D,
-            .baseMipLevel = 0,
-            .mipLevelCount = 1,
-            .baseArrayLayer = 0,
-            .arrayLayerCount = 1,
-            .aspect = wgpu::TextureAspect::All,
-        };
-        return surfaceTexture.texture.CreateView(&viewDescriptor);
     }
 
 
@@ -293,21 +148,21 @@ namespace grass
     }
 
 
-    void Engine::updateGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
+    void Engine::updateGUI()
     {
         ImGui_ImplWGPU_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
             ImGui::Begin("Generation settings");
-            ImGui::Text("Number of blades : %i", ctx->totalBlades);
+            ImGui::Text("Number of blades : %i", config->totalBlades);
             bool genChange = false;
             if (ImGui::CollapsingHeader("Field", ImGuiTreeNodeFlags_DefaultOpen)) {
-                genChange |= ImGui::SliderFloat("Size noise scale", &ctx->grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
+                genChange |= ImGui::SliderFloat("Size noise scale", &config->grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
             }
             if (ImGui::CollapsingHeader("Height", ImGuiTreeNodeFlags_DefaultOpen)) {
-                genChange |= ImGui::SliderFloat("Base", &ctx->grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
-                genChange |= ImGui::SliderFloat("Delta", &ctx->grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
+                genChange |= ImGui::SliderFloat("Base", &config->grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                genChange |= ImGui::SliderFloat("Delta", &config->grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }
             if (genChange) {
                 computeManager->generate();
@@ -317,9 +172,9 @@ namespace grass
             ImGui::Begin("Wind and movement settings");
             bool movChange = false;
             if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen)) {
-                movChange |= ImGui::SliderFloat3("Direction (don't touch y)", &ctx->movUniform.wind.r, -1.0, 1.0, "%.1f");
-                movChange |= ImGui::SliderFloat("Strength", &ctx->movUniform.wind.w, 0.01, 1.0, "%.2f");
-                movChange |= ImGui::SliderFloat("Frequency", &ctx->movUniform.windFrequency, 0.01, 2.0, "%.2f");
+                movChange |= ImGui::SliderFloat3("Direction (don't touch y)", &config->movUniform.wind.r, -1.0, 1.0, "%.1f");
+                movChange |= ImGui::SliderFloat("Strength", &config->movUniform.wind.w, 0.01, 1.0, "%.2f");
+                movChange |= ImGui::SliderFloat("Frequency", &config->movUniform.windFrequency, 0.01, 2.0, "%.2f");
             }
             if (movChange) {
                 computeManager->updateMovSettingsUniorm();
@@ -332,40 +187,24 @@ namespace grass
 
             bool bladeChange = false;
             if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
-                bladeChange |= ImGui::SliderFloat3("Direction", &ctx->bladeUniform.lightDirection.r, -1.0, 1.0, "%.1f");
-                bladeChange |= ImGui::ColorEdit3("Color", &ctx->bladeUniform.lightCol.r, 0);
+                bladeChange |= ImGui::SliderFloat3("Direction", &config->bladeUniform.lightDirection.r, -1.0, 1.0, "%.1f");
+                bladeChange |= ImGui::ColorEdit3("Color", &config->bladeUniform.lightCol.r, 0);
             }
             if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
-                bladeChange |= ImGui::ColorEdit3("Blade Color", &ctx->bladeUniform.bladeCol.r, 0);
-                bladeChange |= ImGui::ColorEdit3("Specular Color", &ctx->bladeUniform.specularCol.r, 0);
-                bladeChange |= ImGui::SliderFloat("Ambient", &ctx->bladeUniform.ambientStrength, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Diffuse", &ctx->bladeUniform.diffuseStrength, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Wrap value", &ctx->bladeUniform.wrapValue, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Specular", &ctx->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
+                bladeChange |= ImGui::ColorEdit3("Blade Color", &config->bladeUniform.bladeCol.r, 0);
+                bladeChange |= ImGui::ColorEdit3("Specular Color", &config->bladeUniform.specularCol.r, 0);
+                bladeChange |= ImGui::SliderFloat("Ambient", &config->bladeUniform.ambientStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Diffuse", &config->bladeUniform.diffuseStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Wrap value", &config->bladeUniform.wrapValue, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Specular", &config->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
             }
             if (bladeChange) {
-                renderer->updateStaticUniforms(ctx->bladeUniform);
+                renderer->updateStaticUniforms(config->bladeUniform);
             }
             ImGui::End();
         }
         ImGui::EndFrame();
         ImGui::Render();
-
-        wgpu::RenderPassColorAttachment imGuiColorAttachment = {
-            .view = targetView,
-            .loadOp = wgpu::LoadOp::Load,
-            .storeOp = wgpu::StoreOp::Store,
-        };
-        wgpu::RenderPassDescriptor imGuiRenderPassDesc = {
-            .label = "ImGui Render Pass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &imGuiColorAttachment,
-        };
-        wgpu::RenderPassEncoder imGuiPass = encoder.BeginRenderPass(&imGuiRenderPassDesc);
-
-        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), imGuiPass.Get());
-        imGuiPass.End();
-
     }
 
 
@@ -374,7 +213,8 @@ namespace grass
     {
         computeManager->generate();
         computeManager->updateMovSettingsUniorm();
-        renderer->updateStaticUniforms(ctx->bladeUniform);
+        renderer->updateStaticUniforms(config->bladeUniform);
+        auto mesh = Mesh("../assets/grass_blade.obj", nullptr);
 
         while (!glfwWindowShouldClose(window))
         {
@@ -385,25 +225,10 @@ namespace grass
             camera.updateMatrix();
             renderer->updateDynamicUniforms(camera, time);
 
-            wgpu::CommandEncoderDescriptor encoderDesc;
-            wgpu::CommandEncoder encoder = ctx->device.CreateCommandEncoder(&encoderDesc);
-
-            wgpu::TextureView targetView = getNextSurfaceTextureView();
-            if (!targetView) return;
-
-            renderer->draw(encoder, targetView, ctx->totalBlades);
-            updateGUI(encoder, targetView);
+            updateGUI();
+            renderer->draw(mesh);
             computeManager->computeMovement(time);
 
-            // Create command buffer
-            wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
-                .label = "Render operations command buffer"
-            };
-            // Submit the command buffer
-            wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
-            ctx->queue.Submit(1, &command);
-
-            surface.Present();
             frameNumber++;
         }
     }

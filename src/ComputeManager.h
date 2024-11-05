@@ -3,7 +3,8 @@
 #include <webgpu/webgpu_cpp.h>
 #include <glm/glm.hpp>
 
-#include "Context.h"
+#include "GPUContext.h"
+#include "GlobalConfig.h"
 
 namespace grass
 {
@@ -22,7 +23,7 @@ namespace grass
     class ComputeManager
     {
     public:
-        ComputeManager(std::shared_ptr<Context> ctx);
+        explicit ComputeManager(std::shared_ptr<GlobalConfig> config);
         wgpu::Buffer init();
         void updateMovSettingsUniorm();
         void generate();
@@ -35,7 +36,8 @@ namespace grass
         void initGenPipeline(const wgpu::BindGroupLayout& sharedLayout);
         void initMovPipeline(const wgpu::BindGroupLayout& sharedLayout);
 
-        std::shared_ptr<Context> ctx;
+        std::shared_ptr<GlobalConfig> config;
+        GPUContext* ctx = nullptr;
 
         wgpu::Buffer computeBuffer;
         wgpu::BindGroup sharedBindGroup;

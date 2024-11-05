@@ -5,8 +5,9 @@
 
 namespace grass
 {
-    ComputeManager::ComputeManager(std::shared_ptr<Context> ctx) : ctx(std::move(ctx))
+    ComputeManager::ComputeManager(std::shared_ptr<GlobalConfig> config) : config(std::move(config))
     {
+        ctx = GPUContext::getInstance();
     }
 
     wgpu::Buffer ComputeManager::init()
@@ -26,10 +27,10 @@ namespace grass
         wgpu::BufferDescriptor sharedComputeBufferDesc = {
             .label = "Grass blade instance info storage buffer",
             .usage = wgpu::BufferUsage::Storage,
-            .size = sizeof(Blade) * ctx->totalBlades,
+            .size = sizeof(Blade) * config->totalBlades,
             .mappedAtCreation = false
         };
-        computeBuffer = ctx->device.CreateBuffer(&sharedComputeBufferDesc);
+        computeBuffer = ctx->getDevice().CreateBuffer(&sharedComputeBufferDesc);
     }
 
 
@@ -47,7 +48,7 @@ namespace grass
             .entryCount = 1,
             .entries = &entryLayout
         };
-        wgpu::BindGroupLayout sharedLayout = ctx->device.CreateBindGroupLayout(&sharedBindGroupLayoutDesc);
+        wgpu::BindGroupLayout sharedLayout = ctx->getDevice().CreateBindGroupLayout(&sharedBindGroupLayoutDesc);
 
 
         wgpu::BindGroupEntry entry = {
@@ -62,7 +63,7 @@ namespace grass
             .entryCount = 1,
             .entries = &entry
         };
-        sharedBindGroup = ctx->device.CreateBindGroup(&sharedBindGroupDesc);
+        sharedBindGroup = ctx->getDevice().CreateBindGroup(&sharedBindGroupDesc);
 
         return sharedLayout;
     }
@@ -73,19 +74,19 @@ namespace grass
         wgpu::BufferDescriptor genSettingsBufferDesc = {
             .label = "Gen settings uniform buffer",
             .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            .size = sizeof(ctx->grassUniform),
+            .size = sizeof(config->grassUniform),
             .mappedAtCreation = false
         };
-        genSettingsUniformBuffer = ctx->device.CreateBuffer(&genSettingsBufferDesc);
+        genSettingsUniformBuffer = ctx->getDevice().CreateBuffer(&genSettingsBufferDesc);
 
         wgpu::BufferDescriptor movSettingsBufferDesc = {
             .label = "Mov settings uniform buffer",
             .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            .size = sizeof(ctx->movUniform),
+            .size = sizeof(config->movUniform),
             .mappedAtCreation = false
         };
-        movSettingsUniformBuffer = ctx->device.CreateBuffer(&movSettingsBufferDesc);
-        ctx->queue.WriteBuffer(movSettingsUniformBuffer, 0, &ctx->movUniform, movSettingsUniformBuffer.GetSize());
+        movSettingsUniformBuffer = ctx->getDevice().CreateBuffer(&movSettingsBufferDesc);
+        ctx->getQueue().WriteBuffer(movSettingsUniformBuffer, 0, &config->movUniform, movSettingsUniformBuffer.GetSize());
 
         wgpu::BufferDescriptor movDynamicBufferDesc = {
             .label = "Mov dynamic uniform buffer",
@@ -93,13 +94,13 @@ namespace grass
             .size = sizeof(float),
             .mappedAtCreation = false
         };
-        movDynamicUniformBuffer = ctx->device.CreateBuffer(&movDynamicBufferDesc);
+        movDynamicUniformBuffer = ctx->getDevice().CreateBuffer(&movDynamicBufferDesc);
     }
 
 
     void ComputeManager::initGenPipeline(const wgpu::BindGroupLayout& sharedLayout)
     {
-        const wgpu::ShaderModule genModule = getShaderModule(ctx->device, "../shaders/gen.compute.wgsl",
+        const wgpu::ShaderModule genModule = getShaderModule(ctx->getDevice(), "../shaders/gen.compute.wgsl",
                                                              "Grass generation compute module");
         wgpu::ComputePipelineDescriptor genPipelineDesc;
         genPipelineDesc.label = "Generation compute pipeline";
@@ -116,14 +117,14 @@ namespace grass
             .visibility = wgpu::ShaderStage::Compute,
             .buffer = {
                 .type = wgpu::BufferBindingType::Uniform,
-                .minBindingSize = sizeof(ctx->grassUniform)
+                .minBindingSize = sizeof(config->grassUniform)
             }
         };
         wgpu::BindGroupLayoutDescriptor genBindGroupLayoutDesc = {
             .entryCount = 1,
             .entries = &genEntryLayout
         };
-        wgpu::BindGroupLayout genBindGroupLayout = ctx->device.CreateBindGroupLayout(&genBindGroupLayoutDesc);
+        wgpu::BindGroupLayout genBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&genBindGroupLayoutDesc);
 
         wgpu::BindGroupLayout bindGroupLayouts[2] = {
             sharedLayout, genBindGroupLayout
@@ -133,9 +134,9 @@ namespace grass
             .bindGroupLayoutCount = 2,
             .bindGroupLayouts = &bindGroupLayouts[0]
         };
-        genPipelineDesc.layout = ctx->device.CreatePipelineLayout(&genPipelineLayoutDesc);
+        genPipelineDesc.layout = ctx->getDevice().CreatePipelineLayout(&genPipelineLayoutDesc);
 
-        genPipeline = ctx->device.CreateComputePipeline(&genPipelineDesc);
+        genPipeline = ctx->getDevice().CreateComputePipeline(&genPipelineDesc);
 
 
         wgpu::BindGroupEntry genEntry =
@@ -152,13 +153,13 @@ namespace grass
             .entryCount = 1,
             .entries = &genEntry
         };
-        genBindGroup = ctx->device.CreateBindGroup(&bindGroupDesc);
+        genBindGroup = ctx->getDevice().CreateBindGroup(&bindGroupDesc);
     }
 
 
     void ComputeManager::initMovPipeline(const wgpu::BindGroupLayout& sharedLayout)
     {
-        const wgpu::ShaderModule movModule = getShaderModule(ctx->device, "../shaders/move.compute.wgsl",
+        const wgpu::ShaderModule movModule = getShaderModule(ctx->getDevice(), "../shaders/move.compute.wgsl",
                                                              "Grass movement compute module");
         wgpu::ComputePipelineDescriptor movPipelineDesc;
         movPipelineDesc.label = "Movement compute pipeline";
@@ -176,7 +177,7 @@ namespace grass
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = sizeof(ctx->movUniform)
+                    .minBindingSize = sizeof(config->movUniform)
                 }
             },
             {
@@ -192,7 +193,7 @@ namespace grass
             .entryCount = 2,
             .entries = &movEntryLayouts[0]
         };
-        wgpu::BindGroupLayout movBindGroupLayout = ctx->device.CreateBindGroupLayout(&movBindGroupLayoutDesc);
+        wgpu::BindGroupLayout movBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&movBindGroupLayoutDesc);
 
         wgpu::BindGroupLayout bindGroupLayouts[2] = {
             sharedLayout, movBindGroupLayout
@@ -202,9 +203,9 @@ namespace grass
             .bindGroupLayoutCount = 2,
             .bindGroupLayouts = &bindGroupLayouts[0]
         };
-        movPipelineDesc.layout = ctx->device.CreatePipelineLayout(&movPipelineLayoutDesc);
+        movPipelineDesc.layout = ctx->getDevice().CreatePipelineLayout(&movPipelineLayoutDesc);
 
-        movPipeline = ctx->device.CreateComputePipeline(&movPipelineDesc);
+        movPipeline = ctx->getDevice().CreateComputePipeline(&movPipelineDesc);
 
         wgpu::BindGroupEntry movEntries[2] = {
             {
@@ -227,22 +228,22 @@ namespace grass
             .entryCount = 2,
             .entries = &movEntries[0]
         };
-        movBindGroup = ctx->device.CreateBindGroup(&bindGroupDesc);
+        movBindGroup = ctx->getDevice().CreateBindGroup(&bindGroupDesc);
     }
 
 
     void ComputeManager::updateMovSettingsUniorm()
     {
-        ctx->queue.WriteBuffer(movSettingsUniformBuffer, 0, &ctx->movUniform, movSettingsUniformBuffer.GetSize());
+        ctx->getQueue().WriteBuffer(movSettingsUniformBuffer, 0, &config->movUniform, movSettingsUniformBuffer.GetSize());
     }
 
 
     void ComputeManager::generate()
     {
-        std::cout << ctx->grassUniform.bladeHeight << std::endl;
-        ctx->queue.WriteBuffer(genSettingsUniformBuffer, 0, &ctx->grassUniform, genSettingsUniformBuffer.GetSize());
+        std::cout << config->grassUniform.bladeHeight << std::endl;
+        ctx->getQueue().WriteBuffer(genSettingsUniformBuffer, 0, &config->grassUniform, genSettingsUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
-        wgpu::CommandEncoder encoder = ctx->device.CreateCommandEncoder(&encoderDesc);
+        wgpu::CommandEncoder encoder = ctx->getDevice().CreateCommandEncoder(&encoderDesc);
 
         wgpu::ComputePassDescriptor computePassDesc;
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&computePassDesc);
@@ -250,7 +251,7 @@ namespace grass
         pass.SetPipeline(genPipeline);
         pass.SetBindGroup(0, sharedBindGroup);
         pass.SetBindGroup(1, genBindGroup);
-        pass.DispatchWorkgroups(ctx->bladesPerSide, ctx->bladesPerSide, 1);
+        pass.DispatchWorkgroups(config->bladesPerSide, config->bladesPerSide, 1);
         pass.End();
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
@@ -258,14 +259,14 @@ namespace grass
         };
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
-        ctx->queue.Submit(1, &command);
+        ctx->getQueue().Submit(1, &command);
     }
 
     void ComputeManager::computeMovement(float time)
     {
-        ctx->queue.WriteBuffer(movDynamicUniformBuffer, 0, &time, movDynamicUniformBuffer.GetSize());
+        ctx->getQueue().WriteBuffer(movDynamicUniformBuffer, 0, &time, movDynamicUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
-        wgpu::CommandEncoder encoder = ctx->device.CreateCommandEncoder(&encoderDesc);
+        wgpu::CommandEncoder encoder = ctx->getDevice().CreateCommandEncoder(&encoderDesc);
 
         wgpu::ComputePassDescriptor computePassDesc;
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&computePassDesc);
@@ -273,7 +274,7 @@ namespace grass
         pass.SetPipeline(movPipeline);
         pass.SetBindGroup(0, sharedBindGroup);
         pass.SetBindGroup(1, movBindGroup);
-        pass.DispatchWorkgroups(ctx->bladesPerSide, ctx->bladesPerSide, 1);
+        pass.DispatchWorkgroups(config->bladesPerSide, config->bladesPerSide, 1);
         pass.End();
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
@@ -281,6 +282,6 @@ namespace grass
         };
         // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
-        ctx->queue.Submit(1, &command);
+        ctx->getQueue().Submit(1, &command);
     }
 } // grass
