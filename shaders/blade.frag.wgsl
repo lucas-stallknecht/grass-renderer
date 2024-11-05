@@ -45,5 +45,6 @@ fn fragment_main(
 
     var col = ((ambientCol + diffuseCol) * AO) * settings.bladeCol + specCol;
     col = mix(col, vec3f(0.1), fogFactor);
+    // col = in.color;
     return vec4f(col, 1.0);
 }

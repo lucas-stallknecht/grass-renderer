@@ -35,4 +35,5 @@ struct VertexOut {
     @location(3) height: f32,
     @location(4) tangent: vec3f,
     @location(5) bitangent: vec3f,
+    @location(6) color: vec3f,
 }

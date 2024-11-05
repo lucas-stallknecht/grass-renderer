@@ -84,5 +84,6 @@ fn vertex_main(
     output.normal = modifiedNormal;
     output.tangent = tangent;
     output.bitangent = bitangent;
+    output.color = vec3f(distance(c1.x, blade.c0.x));
     return output;
 }

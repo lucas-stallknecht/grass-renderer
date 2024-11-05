@@ -1,4 +1,6 @@
 #include "Engine.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
 #include "Utils.h"
 
 #include <cassert>
@@ -19,18 +21,16 @@ namespace grass
         loadedEngine = this;
 
         keysArePressed = new bool[512]{false};
+        ctx = std::make_shared<Context>();
 
         initWindow();
         initWebgpu();
         configSurface();
 
-        auto d = std::make_shared<wgpu::Device>(device);
-        auto q = std::make_shared<wgpu::Queue>(queue);
+        computeManager = std::make_unique<ComputeManager>(ctx);
+        wgpu::Buffer computeBuffer = computeManager->init();
 
-        computeManager = std::make_unique<ComputeManager>(d, q);
-        wgpu::Buffer computeBuffer = computeManager->init(genSettings, {});
-
-        renderer = std::make_unique<Renderer>(d, q, WIDTH, HEIGHT, surfaceFormat);
+        renderer = std::make_unique<Renderer>(ctx, WIDTH, HEIGHT);
         renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
 
         initGUI();
@@ -75,12 +75,11 @@ namespace grass
 
         ImGui_ImplGlfw_InitForOther(window, true);
         ImGui_ImplWGPU_InitInfo info = {};
-        info.Device = device.Get();
+        info.Device = ctx->device.Get();
         info.NumFramesInFlight = 3;
-        info.RenderTargetFormat = static_cast<WGPUTextureFormat>(surfaceFormat);
+        info.RenderTargetFormat = static_cast<WGPUTextureFormat>(ctx->surfaceFormat);
         ImGui_ImplWGPU_Init(&info);
     }
-
 
 
     void Engine::initWebgpu()
@@ -173,18 +172,18 @@ namespace grass
                 }
                 *userdata = std::move(device);
             },
-            &device
+            &ctx->device
         );
         instance.WaitAny(deviceFuture, UINT64_MAX);
-        assert(device && "Could not request device!");
+        assert(ctx->device && "Could not request device!");
 
         wgpu::SurfaceCapabilities capabilities;
         surface.GetCapabilities(chosenAdapter, &capabilities);
-        surfaceFormat = capabilities.formats[0];
-        assert(surfaceFormat != wgpu::TextureFormat::Undefined && "Wrong surface format!");
+        ctx->surfaceFormat = capabilities.formats[0];
+        assert(ctx->surfaceFormat != wgpu::TextureFormat::Undefined && "Wrong surface format!");
 
-        queue = device.GetQueue();
-        assert(queue && "Could not get queue from device!");
+        ctx->queue = ctx->device.GetQueue();
+        assert(ctx->queue && "Could not get queue from device!");
         
     }
 
@@ -192,8 +191,8 @@ namespace grass
     void Engine::configSurface()
     {
         wgpu::SurfaceConfiguration config = {
-            .device = device,
-            .format = surfaceFormat,
+            .device = ctx->device,
+            .format = ctx->surfaceFormat,
             .usage = wgpu::TextureUsage::RenderAttachment,
             .alphaMode = wgpu::CompositeAlphaMode::Auto,
             .width = WIDTH,
@@ -217,7 +216,7 @@ namespace grass
 
         wgpu::TextureViewDescriptor viewDescriptor = {
             .label = "Surface texture view",
-            .format = surfaceFormat,
+            .format = ctx->surfaceFormat,
             .dimension = wgpu::TextureViewDimension::e2D,
             .baseMipLevel = 0,
             .mipLevelCount = 1,
@@ -301,29 +300,29 @@ namespace grass
         ImGui::NewFrame();
         {
             ImGui::Begin("Generation settings");
-            ImGui::Text("Number of blades : %i", genSettings.totalBlades);
+            ImGui::Text("Number of blades : %i", ctx->totalBlades);
             bool genChange = false;
             if (ImGui::CollapsingHeader("Field", ImGuiTreeNodeFlags_DefaultOpen)) {
-                genChange |= ImGui::SliderFloat("Size noise scale", &genSettings.grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
+                genChange |= ImGui::SliderFloat("Size noise scale", &ctx->grassUniform.sizeNoiseFrequency, 0.02, 0.7, "%.2f");
             }
             if (ImGui::CollapsingHeader("Height", ImGuiTreeNodeFlags_DefaultOpen)) {
-                genChange |= ImGui::SliderFloat("Base", &genSettings.grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
-                genChange |= ImGui::SliderFloat("Delta", &genSettings.grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
+                genChange |= ImGui::SliderFloat("Base", &ctx->grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                genChange |= ImGui::SliderFloat("Delta", &ctx->grassUniform.sizeNoiseAmplitude, 0.05, 0.60, "%.2f");
             }
             if (genChange) {
-                computeManager->generate(genSettings);
+                computeManager->generate();
             }
             ImGui::End();
 
             ImGui::Begin("Wind and movement settings");
             bool movChange = false;
             if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen)) {
-                movChange |= ImGui::SliderFloat3("Direction (don't touch y)", &movSettings.wind.r, -1.0, 1.0, "%.1f");
-                movChange |= ImGui::SliderFloat("Strength", &movSettings.wind.w, 0.01, 1.0, "%.2f");
-                movChange |= ImGui::SliderFloat("Frequency", &movSettings.windFrequency, 0.01, 2.0, "%.2f");
+                movChange |= ImGui::SliderFloat3("Direction (don't touch y)", &ctx->movUniform.wind.r, -1.0, 1.0, "%.1f");
+                movChange |= ImGui::SliderFloat("Strength", &ctx->movUniform.wind.w, 0.01, 1.0, "%.2f");
+                movChange |= ImGui::SliderFloat("Frequency", &ctx->movUniform.windFrequency, 0.01, 2.0, "%.2f");
             }
             if (movChange) {
-                computeManager->updateMovSettingsUniorm(movSettings);
+                computeManager->updateMovSettingsUniorm();
             }
             ImGui::End();
 
@@ -333,19 +332,19 @@ namespace grass
 
             bool bladeChange = false;
             if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
-                bladeChange |= ImGui::SliderFloat3("Direction", &bladeSettings.lightDirection.r, -1.0, 1.0, "%.1f");
-                bladeChange |= ImGui::ColorEdit3("Color", &bladeSettings.lightCol.r, 0);
+                bladeChange |= ImGui::SliderFloat3("Direction", &ctx->bladeUniform.lightDirection.r, -1.0, 1.0, "%.1f");
+                bladeChange |= ImGui::ColorEdit3("Color", &ctx->bladeUniform.lightCol.r, 0);
             }
             if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen)) {
-                bladeChange |= ImGui::ColorEdit3("Blade Color", &bladeSettings.bladeCol.r, 0);
-                bladeChange |= ImGui::ColorEdit3("Specular Color", &bladeSettings.specularCol.r, 0);
-                bladeChange |= ImGui::SliderFloat("Ambient", &bladeSettings.ambientStrength, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Diffuse", &bladeSettings.diffuseStrength, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Wrap value", &bladeSettings.wrapValue, 0.0, 1.0, "%.2f");
-                bladeChange |= ImGui::SliderFloat("Specular", &bladeSettings.specularStrength, 0.0, 0.3, "%.3f");
+                bladeChange |= ImGui::ColorEdit3("Blade Color", &ctx->bladeUniform.bladeCol.r, 0);
+                bladeChange |= ImGui::ColorEdit3("Specular Color", &ctx->bladeUniform.specularCol.r, 0);
+                bladeChange |= ImGui::SliderFloat("Ambient", &ctx->bladeUniform.ambientStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Diffuse", &ctx->bladeUniform.diffuseStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Wrap value", &ctx->bladeUniform.wrapValue, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Specular", &ctx->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
             }
             if (bladeChange) {
-                renderer->updateStaticUniforms(bladeSettings);
+                renderer->updateStaticUniforms(ctx->bladeUniform);
             }
             ImGui::End();
         }
@@ -373,26 +372,28 @@ namespace grass
 
     void Engine::run()
     {
-        computeManager->generate(genSettings);
-        computeManager->updateMovSettingsUniorm(movSettings);
-        renderer->updateStaticUniforms(bladeSettings);
+        computeManager->generate();
+        computeManager->updateMovSettingsUniorm();
+        renderer->updateStaticUniforms(ctx->bladeUniform);
+
         while (!glfwWindowShouldClose(window))
         {
             time += io->DeltaTime;
+
             keyInput();
             glfwPollEvents();
             camera.updateMatrix();
             renderer->updateDynamicUniforms(camera, time);
 
             wgpu::CommandEncoderDescriptor encoderDesc;
-            wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encoderDesc);
+            wgpu::CommandEncoder encoder = ctx->device.CreateCommandEncoder(&encoderDesc);
 
             wgpu::TextureView targetView = getNextSurfaceTextureView();
             if (!targetView) return;
 
-            renderer->draw(encoder, targetView, genSettings);
+            renderer->draw(encoder, targetView, ctx->totalBlades);
             updateGUI(encoder, targetView);
-            computeManager->computeMovement(genSettings, time);
+            computeManager->computeMovement(time);
 
             // Create command buffer
             wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
@@ -400,7 +401,7 @@ namespace grass
             };
             // Submit the command buffer
             wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
-            queue.Submit(1, &command);
+            ctx->queue.Submit(1, &command);
 
             surface.Present();
             frameNumber++;

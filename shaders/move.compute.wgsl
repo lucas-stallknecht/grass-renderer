@@ -82,8 +82,9 @@ fn main(
 
     var f = time * movSettings.windFrequency * movSettings.wind.xyz;
     var windNoise = 0.5 + 0.5 * (
-        simplexNoise2((c0).xz * 0.2 - f.xz ) * 0.7 +
-        simplexNoise2((c0).xz * 1.2 - f.xz) * 0.3
+        simplexNoise2((c0).xz * 0.2 - f.xz ) * 0.6 +
+        simplexNoise2((c0).xz * 0.9 - f.xz ) * 0.1 +
+        simplexNoise2((c0).xz * 3.5 - f.xz) * 0.3
     );
     var varianceFactor = mix(0.85, 1.0, idHash);
 

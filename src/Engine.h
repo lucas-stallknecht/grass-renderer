@@ -7,10 +7,10 @@
 #include <dawn/native/DawnNative.h>
 #include <imgui.h>
 
-#include "GrassSettings.h"
 #include "Camera.h"
 #include "Renderer.h"
 #include "ComputeManager.h"
+#include "Context.h"
 
 
 namespace grass
@@ -45,19 +45,14 @@ namespace grass
         std::unique_ptr<ComputeManager> computeManager;
 
         wgpu::Instance instance;
-        wgpu::Device device;
-        wgpu::Queue queue;
         wgpu::Surface surface;
-        wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
+        std::shared_ptr<Context> ctx;
 
         GLFWwindow* window = nullptr;
         ImGuiIO *io = nullptr;
         Camera camera{35.0, static_cast<float>(WIDTH) / static_cast<float>(HEIGHT)};
         uint32_t frameNumber = 0;
         float time = 0.0;
-        GrassGenerationSettings genSettings{};
-        GrassMovUniformData movSettings{};
-        BladeStaticUniformData bladeSettings{};
 
         // Controls
         bool focused = false;

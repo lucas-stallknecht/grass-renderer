@@ -2,20 +2,18 @@
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <memory>
-#include "GrassSettings.h"
 #include "Camera.h"
+#include "Context.h"
 
 namespace grass
 {
     class Renderer
     {
     public:
-        Renderer(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue,
-        uint16_t width, uint16_t height, wgpu::TextureFormat surfaceFormat);
+        Renderer(std::shared_ptr<Context> ctx, uint16_t width, uint16_t height);
         ~Renderer() = default;
         void init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera);
-        void draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
-                  const GrassGenerationSettings& grassSettings);
+        void draw(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, size_t nBlades);
         void updateDynamicUniforms(const Camera& camera, float time);
         void updateStaticUniforms(const BladeStaticUniformData& uniform);
 
@@ -24,11 +22,9 @@ namespace grass
         void createUniformBuffers(const Camera& camera);
         void createBladeTextures();
         void createDepthTextureView();
-        void initRenderPipeline(const wgpu::Buffer& positionsBuffer);
+        void initRenderPipeline(const wgpu::Buffer& computeBuffer);
 
-        std::shared_ptr<wgpu::Device> device;
-        std::shared_ptr<wgpu::Queue> queue;
-        wgpu::TextureFormat surfaceFormat;
+        std::shared_ptr<Context> ctx;
         wgpu::Extent2D size;
         wgpu::TextureView depthView;
         wgpu::Texture normalTexture;

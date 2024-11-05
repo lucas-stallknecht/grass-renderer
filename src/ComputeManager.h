@@ -2,8 +2,8 @@
 
 #include <webgpu/webgpu_cpp.h>
 #include <glm/glm.hpp>
-#include "GrassSettings.h"
 
+#include "Context.h"
 
 namespace grass
 {
@@ -22,21 +22,20 @@ namespace grass
     class ComputeManager
     {
     public:
-        ComputeManager(std::shared_ptr<wgpu::Device> device, std::shared_ptr<wgpu::Queue> queue);
-        wgpu::Buffer init(const GrassGenerationSettings& genSettings, const GrassMovUniformData& movSettings);
-        void updateMovSettingsUniorm(const GrassMovUniformData& movSettings);
-        void generate(const GrassGenerationSettings& genSettings);
-        void computeMovement(const GrassGenerationSettings& genSettings, float time);
+        ComputeManager(std::shared_ptr<Context> ctx);
+        wgpu::Buffer init();
+        void updateMovSettingsUniorm();
+        void generate();
+        void computeMovement(float time);
 
     private:
-        void createSharedBuffer(const GrassGenerationSettings& genSettings);
+        void createSharedBuffer();
         wgpu::BindGroupLayout createSharedBindGroup();
-        void createUniformBuffers(const GrassGenerationSettings& genSettings, const GrassMovUniformData& movSettings);
-        void initGenPipeline(const GrassGenerationSettings& genSettings, const wgpu::BindGroupLayout& sharedLayout);
-        void initMovPipeline(const GrassMovUniformData& movSettings, const wgpu::BindGroupLayout& sharedLayout);
+        void createUniformBuffers();
+        void initGenPipeline(const wgpu::BindGroupLayout& sharedLayout);
+        void initMovPipeline(const wgpu::BindGroupLayout& sharedLayout);
 
-        std::shared_ptr<wgpu::Device> device;
-        std::shared_ptr<wgpu::Queue> queue;
+        std::shared_ptr<Context> ctx;
 
         wgpu::Buffer computeBuffer;
         wgpu::BindGroup sharedBindGroup;
