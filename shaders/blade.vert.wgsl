@@ -1,7 +1,6 @@
-@group(0) @binding(0) var<uniform> cam: Camera;
-@group(0) @binding(1) var<uniform> time: f32;
-@group(0) @binding(2) var<uniform> settings: BladeSettings;
-@group(1) @binding(0) var<storage, read> bladePositions: array<Blade>;
+@group(0) @binding(0) var<uniform> global: Global;
+@group(1) @binding(0) var<uniform> settings: BladeSettings;
+@group(1) @binding(2) var<storage, read> bladePositions: array<Blade>;
 
 
 fn bezier(t: f32, c0: vec3f,  c1: vec3f,  c2: vec3f) -> vec3f {
@@ -18,14 +17,6 @@ fn ease(x: f32, n: f32)-> f32 {
     return pow(x, n);
 }
 
-fn resizeY(r: f32) -> mat4x4f {
-    return mat4x4f(
-        r, 0.0, 0.0, 0.0,
-        0.0, r, 0.0, 0.0,
-        0.0, 0.0, r, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
 
 @vertex
 fn vertex_main(
@@ -33,7 +24,7 @@ fn vertex_main(
     @location(0) pos: vec3f,
     @location(1) normal: vec3f,
     @location(2) texCoord: vec2f
-    ) -> VertexOut
+    ) -> BladeVertexOut
 {
     let blade = bladePositions[instanceIndex];
 
@@ -42,7 +33,7 @@ fn vertex_main(
     let bobbingPhase = blade.idHash * pos.y;
     let bobbingFreq = 0.0;
     // Bobbing up and down gives a better swaying effect than just tilting uniformally
-    c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (time + bobbingPhase));
+    c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (global.time + bobbingPhase));
 
     // Conservation of length
     let L0 = distance(blade.c0, c1);
@@ -63,7 +54,7 @@ fn vertex_main(
     var modifiedNormal = normalize(cross(bitangent, tangent));
 
     // Font and back faces have different vectors
-    let vertToCamVector = normalize(cam.position - worldPos.xyz);
+    let vertToCamVector = normalize(global.cam.position - worldPos.xyz);
     let inversion = sign(dot(modifiedNormal, vertToCamVector));
     modifiedNormal *= inversion;
     bitangent *= inversion;
@@ -74,10 +65,10 @@ fn vertex_main(
     var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * 0.3;
     // worldPos.x += thicknessAmount * modifiedNormal.x;
     // worldPos.z += thicknessAmount * modifiedNormal.z;
-    var mvPos = cam.view * worldPos;
+    var mvPos = global.cam.view * worldPos;
 
-    var output: VertexOut;
-    output.position = cam.proj * mvPos;
+    var output: BladeVertexOut;
+    output.position = global.cam.proj * mvPos;
     output.worldPosition = worldPos.xyz / worldPos.w;
     output.texCoord = texCoord;
     output.height = pos.y;

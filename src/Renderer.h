@@ -14,32 +14,36 @@ namespace grass
     public:
         Renderer(std::shared_ptr<GlobalConfig> config, uint16_t width, uint16_t height);
         ~Renderer() = default;
-        void init(const std::string& meshFilePath, const wgpu::Buffer& positionsBuffer, const Camera& camera);
-        void draw(Mesh& mesh);
-        void updateDynamicUniforms(const Camera& camera, float time);
-        void updateStaticUniforms(const BladeStaticUniformData& uniform);
+        void init(const wgpu::Buffer& computeBuffer);
+        void draw(const std::vector<Mesh>& scene);
+        void updateGlobalUniforms(const Camera& camera, float time);
+        void updateBladeUniforms(const BladeStaticUniformData& uniform);
 
     private:
-        void createUniformBuffers(const Camera& camera);
-        void createBladeTextures();
+        void initGlobalResources();
+        void initBladeResources();
         void createDepthTextureView();
-        void initRenderPipeline(const wgpu::Buffer& computeBuffer);
-        void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, Mesh& mesh);
+        void initGrassPipeline(const wgpu::Buffer& computeBuffer);
+        void initPhongPipeline();
+        void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, const std::vector<Mesh>& scene);
         void drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
 
         std::shared_ptr<GlobalConfig> config;
         GPUContext* ctx = nullptr;
         wgpu::Extent2D size;
         wgpu::TextureView depthView;
-        wgpu::Texture normalTexture;
         wgpu::Sampler textureSampler;
 
-        wgpu::Buffer camUniformBuffer;
-        wgpu::Buffer bladeStaticUniformBuffer;
-        wgpu::Buffer bladeDynamicUniformBuffer;
+        wgpu::BindGroup globalBindGroup;
+        wgpu::Buffer globalUniformBuffer;
+
+        wgpu::RenderPipeline phongPipeline;
+
 
         wgpu::RenderPipeline grassPipeline;
-        wgpu::BindGroup globalBindGroup;
-        wgpu::BindGroup storageBindGroup;
+        wgpu::Buffer bladeUniformBuffer;
+        wgpu::BindGroup grassBindGroup;
+        wgpu::Texture bladeNormalTexture;
+        MeshGeomoetry bladeGeometry{"../assets/grass_blade.obj"};
     };
 } // grass

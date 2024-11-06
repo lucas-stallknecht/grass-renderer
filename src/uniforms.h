@@ -2,9 +2,17 @@
 
 #include <cmath>
 #include <glm/glm.hpp>
+#include "Camera.h"
 
 namespace grass
 {
+    struct GlobalUniformData
+    {
+        CameraUniformData camera;
+        float time;
+        glm::vec3 padding;
+    };
+
     struct GrassGenUniformData
     {
         // Field settings
@@ -36,10 +44,5 @@ namespace grass
         float ambientStrength = 0.3;
         glm::vec3 specularCol = {1.0, 0.88, 0.88};
         float specularStrength = 0.15;
-    };
-
-    struct BladeDynamicUniformData
-    {
-        float time = 0.0;
     };
 }

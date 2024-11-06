@@ -1,8 +1,7 @@
-@group(0) @binding(0) var<uniform> cam: Camera;
-@group(0) @binding(1) var<uniform> time: f32;
-@group(0) @binding(2) var<uniform> settings: BladeSettings;
-@group(0) @binding(3) var normalTexture: texture_2d<f32>;
-@group(0) @binding(4) var textureSampler: sampler;
+@group(0) @binding(0) var<uniform> global: Global;
+@group(0) @binding(1) var texSampler: sampler;
+@group(1) @binding(0) var<uniform> settings: BladeSettings;
+@group(1) @binding(1) var normalTex: texture_2d<f32>;
 
 // TODO sky L1 SH to replace constant ambient
 const greenCol: vec3f = vec3f(0.29, 0.57, 0.24);
@@ -10,7 +9,7 @@ const greenCol: vec3f = vec3f(0.29, 0.57, 0.24);
 @fragment
 fn fragment_main(
     @builtin(front_facing) front_facing: bool,
-    in: VertexOut
+    in: BladeVertexOut
     ) -> @location(0) vec4f
 {
     var uv = in.texCoord;
@@ -21,7 +20,7 @@ fn fragment_main(
     // Convert texture tangent space to world space
     // Maybe overkill (cause we blend normal to up vector anyways) but needed for rounded normals
     var tangentToWorld = mat3x3f(in.tangent, in.bitangent, in.normal);
-    var normal = textureSample(normalTexture, textureSampler, uv).rgb;
+    var normal = textureSample(normalTex, texSampler, uv).rgb;
     normal = normal * 2.0 - 1.0;
     normal = normalize(tangentToWorld * normal);
 
@@ -35,13 +34,13 @@ fn fragment_main(
     var diffuseCol = settings.diffuseStrength * diff * settings.lightCol;
 
     // Blinn-Phong specular
-    var halfwayDir = normalize(settings.lightDirection - normalize((in.worldPosition - cam.position)));
+    var halfwayDir = normalize(settings.lightDirection - normalize((in.worldPosition - global.cam.position)));
     var spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
     var specCol = settings.specularStrength * spec * settings.specularCol;
 
     var AO = mix(vec3f(0.2), vec3f(1.0), smoothstep(0.0, 1.0, in.height));
 
-    var fogFactor = 1.0 - pow(2.0, -pow(0.09 * distance(cam.position, in.worldPosition), 2.0));
+    var fogFactor = 1.0 - pow(2.0, -pow(0.09 * distance(global.cam.position, in.worldPosition), 2.0));
 
     var col = ((ambientCol + diffuseCol) * AO) * settings.bladeCol + specCol;
     col = mix(col, vec3f(0.1), fogFactor);

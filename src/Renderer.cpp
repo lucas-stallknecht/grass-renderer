@@ -3,6 +3,7 @@
 
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
+#include "layouts.h"
 
 #include <iostream>
 
@@ -15,91 +16,65 @@ namespace grass
     }
 
 
-    void Renderer::init(const std::string& meshFilePath, const wgpu::Buffer& computeBuffer, const Camera& camera)
+    void Renderer::init(const wgpu::Buffer& computeBuffer)
     {
-
-        createUniformBuffers(camera);
-        createBladeTextures();
-        initRenderPipeline(computeBuffer);
+        initGlobalResources();
+        initBladeResources();
+        initGrassPipeline(computeBuffer);
+        initPhongPipeline();
         createDepthTextureView();
     }
 
 
-    void Renderer::createUniformBuffers(const Camera& camera)
+    void Renderer::initGlobalResources()
     {
-        wgpu::BufferDescriptor camUniformBufferDesc = {
-            .label = "Camera uniform buffer",
+        wgpu::BufferDescriptor globalUniformBufferDesc = {
+            .label = "Global uniform buffer",
             .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(CameraUniformData),
+            .size = sizeof(GlobalUniformData),
             .mappedAtCreation = false,
         };
-        camUniformBuffer = ctx->getDevice().CreateBuffer(&camUniformBufferDesc);
-
-        wgpu::BufferDescriptor bladeDynamicUniformBufferDesc = {
-            .label = "Blade : dynamic uniform buffer",
-            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(BladeDynamicUniformData),
-            .mappedAtCreation = false,
-        };
-        bladeDynamicUniformBuffer = ctx->getDevice().CreateBuffer(&bladeDynamicUniformBufferDesc);
-
-        wgpu::BufferDescriptor bladeStaticUniformBufferDesc = {
-            .label = "Blade : static uniform buffer",
-            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
-            .size = sizeof(BladeStaticUniformData),
-            .mappedAtCreation = false,
-        };
-        bladeStaticUniformBuffer = ctx->getDevice().CreateBuffer(&bladeStaticUniformBufferDesc);
-    }
-
-
-    void Renderer::createBladeTextures()
-    {
-        normalTexture = loadTexture("../assets/blade_normal.png", ctx->getDevice(), ctx->getQueue());
+        globalUniformBuffer = ctx->getDevice().CreateBuffer(&globalUniformBufferDesc);
 
         wgpu::SamplerDescriptor samplerDesc = {};
         textureSampler = ctx->getDevice().CreateSampler(&samplerDesc);
     }
 
 
-    void Renderer::initRenderPipeline(const wgpu::Buffer& computeBuffer)
+    void Renderer::initBladeResources()
     {
-        wgpu::ShaderModule vertModule = getShaderModule(ctx->getDevice(), "../shaders/blade.vert.wgsl", "Vertex Module");
-        wgpu::ShaderModule fragModule = getShaderModule(ctx->getDevice(), "../shaders/blade.frag.wgsl", "Frag Module");
-        // Top level pipeline descriptor -> used to create the pipeline
+        bladeNormalTexture = loadTexture("../assets/blade_normal.png");
+
+        wgpu::BufferDescriptor bladeUniformBufferDesc = {
+            .label = "Blade : static uniform buffer",
+            .usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform,
+            .size = sizeof(BladeStaticUniformData),
+            .mappedAtCreation = false,
+        };
+        bladeUniformBuffer = ctx->getDevice().CreateBuffer(&bladeUniformBufferDesc);
+    }
+
+
+    void Renderer::initGrassPipeline(const wgpu::Buffer& computeBuffer)
+    {
+        wgpu::ShaderModule vertModule = getShaderModule(ctx->getDevice(), "../shaders/blade.vert.wgsl",
+                                                        "Grass Vertex Module");
+        wgpu::ShaderModule fragModule = getShaderModule(ctx->getDevice(), "../shaders/blade.frag.wgsl",
+                                                        "Grass Frag Module");
+
         wgpu::RenderPipelineDescriptor pipelineDesc;
 
-
-        // --- Uniform and storage Bindings ---
-
-        // Global uniforms bind group layout (Cam + others globals)
-        wgpu::BindGroupLayoutEntry globalEntryLayouts[5] = {
+        wgpu::BindGroupLayoutEntry grassEntryLayouts[4] = {
             {
                 .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex |  wgpu::ShaderStage::Fragment,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .buffer = {
                     .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = camUniformBuffer.GetSize()
+                    .minBindingSize = bladeUniformBuffer.GetSize()
                 }
             },
             {
                 .binding = 1,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer = {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = bladeDynamicUniformBuffer.GetSize()
-                }
-            },
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer = {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .minBindingSize = bladeStaticUniformBuffer.GetSize()
-                }
-            },
-            {
-                .binding = 3,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .texture = {
                     .sampleType = wgpu::TextureSampleType::Float,
@@ -107,24 +82,7 @@ namespace grass
                 },
             },
             {
-                .binding = 4,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .sampler = {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                }
-            }
-        };
-        wgpu::BindGroupLayoutDescriptor globalBindGroupLayoutDesc = {
-            .label = "Global uniforms bind group layout",
-            .entryCount = 5,
-            .entries = &globalEntryLayouts[0]
-        };
-        wgpu::BindGroupLayout globalBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&globalBindGroupLayoutDesc);
-
-        // SSBO bind group layout (compute buffer)
-        wgpu::BindGroupLayoutEntry storageEntryLayouts[2] = {
-            {
-                .binding = 0,
+                .binding = 2,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer = {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
@@ -132,15 +90,21 @@ namespace grass
                 }
             }
         };
-        wgpu::BindGroupLayoutDescriptor storageBindGroupLayoutDesc = {
+
+        wgpu::BindGroupLayoutDescriptor grassBindGroupLayoutDesc = {
             .label = "Storage bind group layout",
-            .entryCount = 1,
-            .entries = &storageEntryLayouts[0]
+            .entryCount = 3,
+            .entries = &grassEntryLayouts[0]
         };
-        wgpu::BindGroupLayout storageBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&storageBindGroupLayoutDesc);
+
+        wgpu::BindGroupLayout globalBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(
+            &globalBindGroupLayoutDesc);
+        wgpu::BindGroupLayout grassBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&grassBindGroupLayoutDesc);
 
 
-        wgpu::BindGroupLayout bindGroupLayouts[2] = {globalBindGroupLayout, storageBindGroupLayout};
+        wgpu::BindGroupLayout bindGroupLayouts[2] = {
+            globalBindGroupLayout, grassBindGroupLayout
+        };
         wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
             .bindGroupLayoutCount = 2,
             .bindGroupLayouts = &bindGroupLayouts[0]
@@ -150,33 +114,9 @@ namespace grass
 
 
         // --- Attribute binding ---
-        wgpu::VertexAttribute vertAttrib[3] = {
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = 0,
-                .shaderLocation = 0,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = 3 * sizeof(float),
-                .shaderLocation = 1,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x2,
-                .offset = 6 * sizeof(float),
-                .shaderLocation = 2,
-            }
-        };
-        wgpu::VertexBufferLayout vertLayout = {
-            .arrayStride = 8 * sizeof(float),
-            .stepMode = wgpu::VertexStepMode::Vertex,
-            .attributeCount = 3,
-            // this must target the first element of the array if there are multiple attributes
-            .attributes = &vertAttrib[0]
-        };
         pipelineDesc.vertex.module = vertModule;
         pipelineDesc.vertex.bufferCount = 1;
-        pipelineDesc.vertex.buffers = &vertLayout;
+        pipelineDesc.vertex.buffers = &defaultVertexLayout;
 
 
         // --- Fragment state ---
@@ -190,58 +130,34 @@ namespace grass
         };
         pipelineDesc.fragment = &fragmentState;
 
-        // --- Depth  ---
-        wgpu::DepthStencilState depthStencil = {
-            .format = wgpu::TextureFormat::Depth24Plus,
-            .depthWriteEnabled = true,
-            .depthCompare = wgpu::CompareFunction::Less,
-            .stencilReadMask = 0,
-            .stencilWriteMask = 0
-        };
-        pipelineDesc.depthStencil = &depthStencil;
+        pipelineDesc.depthStencil = &defaultDepthStencil;
 
         pipelineDesc.label = "Blade of grass pipeline";
         grassPipeline = ctx->getDevice().CreateRenderPipeline(&pipelineDesc);
 
         // TEMPORARY
         wgpu::TextureViewDescriptor textureViewDesc = {
-            .format = normalTexture.GetFormat(),
+            .format = bladeNormalTexture.GetFormat(),
             .dimension = wgpu::TextureViewDimension::e2D,
             .mipLevelCount = 1,
             .arrayLayerCount = 1
         };
-        wgpu::TextureView textureView = normalTexture.CreateView(&textureViewDesc);
+        wgpu::TextureView textureView = bladeNormalTexture.CreateView(&textureViewDesc);
 
 
         // --- Bind group ---
         // The "real" bindings between the buffer and the shader locs, not just the layout
-        wgpu::BindGroupEntry globalEntries[5] = {
+        wgpu::BindGroupEntry globalEntries[2] = {
             {
                 .binding = 0,
-                .buffer = camUniformBuffer,
+                .buffer = globalUniformBuffer,
                 .offset = 0,
-                .size = camUniformBuffer.GetSize()
+                .size = globalUniformBuffer.GetSize()
             },
             {
                 .binding = 1,
-                .buffer = bladeDynamicUniformBuffer,
-                .offset = 0,
-                .size = bladeDynamicUniformBuffer.GetSize()
-            },
-            {
-                .binding = 2,
-                .buffer = bladeStaticUniformBuffer,
-                .offset = 0,
-                .size = bladeStaticUniformBuffer.GetSize()
-            },
-            {
-                .binding = 3,
-                .textureView = textureView,
-            },
-            {
-                .binding = 4,
                 .sampler = textureSampler,
-            }
+            },
         };
         wgpu::BindGroupDescriptor globalBindGroupDesc = {
             .label = "Global uniforms bind group",
@@ -251,9 +167,19 @@ namespace grass
         };
         globalBindGroup = ctx->getDevice().CreateBindGroup(&globalBindGroupDesc);
 
-        wgpu::BindGroupEntry storageEntries[2] = {
+        wgpu::BindGroupEntry storageEntries[4] = {
             {
                 .binding = 0,
+                .buffer = bladeUniformBuffer,
+                .offset = 0,
+                .size = bladeUniformBuffer.GetSize()
+            },
+            {
+                .binding = 1,
+                .textureView = textureView,
+            },
+            {
+                .binding = 2,
                 .buffer = computeBuffer,
                 .offset = 0,
                 .size = computeBuffer.GetSize()
@@ -261,11 +187,63 @@ namespace grass
         };
         wgpu::BindGroupDescriptor storageBindGroupDesc = {
             .label = "Storage bind group",
-            .layout = storageBindGroupLayout,
-            .entryCount = storageBindGroupLayoutDesc.entryCount,
+            .layout = grassBindGroupLayout,
+            .entryCount = grassBindGroupLayoutDesc.entryCount,
             .entries = &storageEntries[0]
         };
-        storageBindGroup = ctx->getDevice().CreateBindGroup(&storageBindGroupDesc);
+        grassBindGroup = ctx->getDevice().CreateBindGroup(&storageBindGroupDesc);
+    }
+
+
+    void Renderer::initPhongPipeline()
+    {
+        wgpu::ShaderModule vertModule = getShaderModule(ctx->getDevice(), "../shaders/phong.vert.wgsl",
+                                                        "Phong Vertex Module");
+        wgpu::ShaderModule fragModule = getShaderModule(ctx->getDevice(), "../shaders/phong.frag.wgsl",
+                                                        "Phong Frag Module");
+
+        wgpu::RenderPipelineDescriptor pipelineDesc;
+
+
+        wgpu::BindGroupLayout bindGroupLayouts[3] = {
+            ctx->getDevice().CreateBindGroupLayout(&globalBindGroupLayoutDesc),
+            ctx->getDevice().CreateBindGroupLayout(&phongMaterialBindGroupLayoutDesc),
+            ctx->getDevice().CreateBindGroupLayout(&modelBindGroupLayoutDesc)
+        };
+        wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
+            .bindGroupLayoutCount = 3,
+            .bindGroupLayouts = &bindGroupLayouts[0]
+        };
+        wgpu::PipelineLayout pipelineLayout = ctx->getDevice().CreatePipelineLayout(&lipelineLayoutDesc);
+        pipelineDesc.layout = pipelineLayout;
+
+        pipelineDesc.vertex.module = vertModule;
+        pipelineDesc.vertex.bufferCount = 1;
+        pipelineDesc.vertex.buffers = &defaultVertexLayout;
+
+        wgpu::ColorTargetState colorTarget;
+        colorTarget.format = ctx->getSurfaceFormat();
+
+        wgpu::FragmentState fragmentState = {
+            .module = fragModule,
+            .targetCount = 1,
+            .targets = &colorTarget
+        };
+        pipelineDesc.fragment = &fragmentState;
+
+        pipelineDesc.depthStencil = &defaultDepthStencil;
+
+        pipelineDesc.label = "Phong pipeline";
+        phongPipeline = ctx->getDevice().CreateRenderPipeline(&pipelineDesc);
+
+        // TEMPORARY
+        wgpu::TextureViewDescriptor textureViewDesc = {
+            .format = bladeNormalTexture.GetFormat(),
+            .dimension = wgpu::TextureViewDimension::e2D,
+            .mipLevelCount = 1,
+            .arrayLayerCount = 1
+        };
+        wgpu::TextureView textureView = bladeNormalTexture.CreateView(&textureViewDesc);
     }
 
 
@@ -294,7 +272,7 @@ namespace grass
     }
 
 
-    void Renderer::updateDynamicUniforms(const Camera& camera, float time)
+    void Renderer::updateGlobalUniforms(const Camera& camera, float time)
     {
         CameraUniformData camUniforms = {
             camera.viewMatrix,
@@ -302,18 +280,22 @@ namespace grass
             camera.position,
         };
         camUniforms.dir = camera.direction;
-        ctx->getQueue().WriteBuffer(camUniformBuffer, 0, &camUniforms, camUniformBuffer.GetSize());
-
-        ctx->getQueue().WriteBuffer(bladeDynamicUniformBuffer, 0, &time, bladeDynamicUniformBuffer.GetSize());
+        GlobalUniformData globalUniforms = {
+            camUniforms,
+            time
+        };
+        ctx->getQueue().WriteBuffer(globalUniformBuffer, 0, &globalUniforms, globalUniformBuffer.GetSize());
     }
 
 
-    void Renderer::updateStaticUniforms(const BladeStaticUniformData& uniform)
+    void Renderer::updateBladeUniforms(const BladeStaticUniformData& uniform)
     {
-        ctx->getQueue().WriteBuffer(bladeStaticUniformBuffer, 0, &uniform, bladeStaticUniformBuffer.GetSize());
+        ctx->getQueue().WriteBuffer(bladeUniformBuffer, 0, &uniform, bladeUniformBuffer.GetSize());
     }
 
-    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, Mesh& mesh)
+
+    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                             const std::vector<Mesh>& scene)
     {
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
             .view = targetView,
@@ -335,16 +317,25 @@ namespace grass
         };
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
-        pass.SetPipeline(grassPipeline);
         pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
-        pass.SetBindGroup(1, storageBindGroup, 0, nullptr);
-        mesh.draw(pass, config->totalBlades);
+
+        pass.SetPipeline(phongPipeline);
+        for(auto mesh: scene)
+        {
+            pass.SetBindGroup(1, mesh.material.bindGroup, 0, nullptr);
+            pass.SetBindGroup(2, mesh.bindGroup, 0, nullptr);
+            mesh.draw(pass, 1);
+        }
+
+        pass.SetPipeline(grassPipeline);
+        pass.SetBindGroup(1, grassBindGroup, 0, nullptr);
+        bladeGeometry.draw(pass, config->totalBlades);
+
         pass.End();
     }
 
     void Renderer::drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
     {
-
         wgpu::RenderPassColorAttachment imGuiColorAttachment = {
             .view = targetView,
             .loadOp = wgpu::LoadOp::Load,
@@ -361,8 +352,7 @@ namespace grass
     }
 
 
-
-    void Renderer::draw(Mesh& mesh)
+    void Renderer::draw(const std::vector<Mesh>& scene)
     {
         wgpu::TextureView targetView = ctx->getNextSurfaceTextureView();
         if (!targetView) return;
@@ -370,7 +360,7 @@ namespace grass
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = ctx->getDevice().CreateCommandEncoder(&encoderDesc);
 
-        drawScene(encoder, targetView, mesh);
+        drawScene(encoder, targetView, scene);
         drawGUI(encoder, targetView);
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {

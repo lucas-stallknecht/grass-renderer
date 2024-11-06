@@ -32,7 +32,7 @@ namespace grass
         wgpu::Buffer computeBuffer = computeManager->init();
 
         renderer = std::make_unique<Renderer>(config, WIDTH, HEIGHT);
-        renderer->init("../assets/grass_blade.obj", computeBuffer, camera);
+        renderer->init(computeBuffer);
 
         initGUI();
     }
@@ -199,7 +199,7 @@ namespace grass
                 bladeChange |= ImGui::SliderFloat("Specular", &config->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
             }
             if (bladeChange) {
-                renderer->updateStaticUniforms(config->bladeUniform);
+                renderer->updateBladeUniforms(config->bladeUniform);
             }
             ImGui::End();
         }
@@ -213,8 +213,13 @@ namespace grass
     {
         computeManager->generate();
         computeManager->updateMovSettingsUniorm();
-        renderer->updateStaticUniforms(config->bladeUniform);
-        auto mesh = Mesh("../assets/grass_blade.obj", nullptr);
+        renderer->updateBladeUniforms(config->bladeUniform);
+
+
+        PhongMaterial testMat{loadTexture("../assets/test_cube_diff.png")};
+        auto testCubeGeo = MeshGeomoetry("../assets/test_cube.obj");
+        auto testCubeMesh = Mesh(testCubeGeo, testMat);
+        std::vector<Mesh> scene = {testCubeMesh};
 
         while (!glfwWindowShouldClose(window))
         {
@@ -223,10 +228,10 @@ namespace grass
             keyInput();
             glfwPollEvents();
             camera.updateMatrix();
-            renderer->updateDynamicUniforms(camera, time);
+            renderer->updateGlobalUniforms(camera, time);
 
             updateGUI();
-            renderer->draw(mesh);
+            renderer->draw(scene);
             computeManager->computeMovement(time);
 
             frameNumber++;

@@ -29,7 +29,8 @@ file(GLOB_RECURSE SOURCES
         "${SOURCE_DIR}/*.c"
 )
 
-add_executable(App main.cpp ${SOURCES})
+add_executable(App main.cpp ${SOURCES}
+        src/layouts.h)
 
 set_target_properties(App PROPERTIES
         CXX_STANDARD 20

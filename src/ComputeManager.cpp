@@ -240,7 +240,6 @@ namespace grass
 
     void ComputeManager::generate()
     {
-        std::cout << config->grassUniform.bladeHeight << std::endl;
         ctx->getQueue().WriteBuffer(genSettingsUniformBuffer, 0, &config->grassUniform, genSettingsUniformBuffer.GetSize());
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = ctx->getDevice().CreateCommandEncoder(&encoderDesc);

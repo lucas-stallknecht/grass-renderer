@@ -72,7 +72,7 @@ namespace grass
     }
 
 
-    inline bool loadMesh(const std::string& filePath, std::vector<VertexData>& verticesData)
+    inline bool loadVertexData(const std::string& filePath, std::vector<VertexData>& verticesData)
     {
         tinyobj::ObjReaderConfig readerConfig;
         readerConfig.mtl_search_path = "./";
@@ -142,11 +142,14 @@ namespace grass
     }
 
 
-    inline wgpu::Texture loadTexture(const std::string& path, const wgpu::Device& device, const wgpu::Queue& queue)
+    inline wgpu::Texture loadTexture(const std::string& path)
     {
         int width, height, channels;
         unsigned char* pixelData = stbi_load(path.c_str(), &width, &height, &channels, 4);
         if (nullptr == pixelData) return nullptr;
+
+        const wgpu::Device device = GPUContext::getInstance()->getDevice();
+        const wgpu::Queue queue = GPUContext::getInstance()->getQueue();
 
         wgpu::Extent3D textureSize = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
 

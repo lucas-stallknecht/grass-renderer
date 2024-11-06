@@ -1,21 +1,21 @@
 #include "Mesh.h"
 
 #include "GPUContext.h"
+#include "layouts.h"
 #include "Utils.h"
 
 namespace grass {
 
-    Mesh::Mesh(const std::string& meshFilePath, const wgpu::RenderPipeline& renderPipeline)
+    MeshGeomoetry::MeshGeomoetry(const std::string& meshFilePath)
     {
-        loadGeometry(meshFilePath);
-        pipeline = renderPipeline;
+        createVertexBuffer(meshFilePath);
     }
 
 
-    void Mesh::loadGeometry(const std::string& meshFilePath)
+    void MeshGeomoetry::createVertexBuffer(const std::string& meshFilePath)
     {
         std::vector<VertexData> verticesData;
-        if (!loadMesh(meshFilePath, verticesData))
+        if (!loadVertexData(meshFilePath, verticesData))
         {
             std::cerr << "Could not load geometry!" << std::endl;
         }
@@ -32,11 +32,63 @@ namespace grass {
         GPUContext::getInstance()->getQueue().WriteBuffer(vertexBuffer, 0, verticesData.data(), bufferDesc.size);
     }
 
-    void Mesh::draw(const wgpu::RenderPassEncoder& pass, uint32_t instanceCount)
+    void MeshGeomoetry::draw(const wgpu::RenderPassEncoder& pass, uint32_t instanceCount)
     {
         pass.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.GetSize());
         pass.Draw(vertexCount, instanceCount, 0, 0);
     }
+
+   Mesh::Mesh(MeshGeomoetry geometry, PhongMaterial material) : geometry(std::move(geometry)), material(std::move(material))
+   {
+        createBuffer();
+        createBindGroup();
+   }
+
+    void Mesh::createBuffer()
+    {
+        wgpu::BufferDescriptor bufferDesc = {
+            .label = "Model uniform buffer",
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(glm::mat4),
+            .mappedAtCreation = false
+        };
+        modelBuffer = GPUContext::getInstance()->getDevice().CreateBuffer(&bufferDesc);
+    }
+
+
+    void Mesh::createBindGroup()
+    {
+        wgpu::BindGroupEntry entry[1] = {
+            {
+                .binding = 0,
+                .buffer = modelBuffer,
+                .offset = 0,
+                .size = modelBuffer.GetSize()
+            },
+        };
+        wgpu::BindGroupDescriptor bindGroupDesc = {
+            .label = "Model bind group",
+            .layout = GPUContext::getInstance()->getDevice().CreateBindGroupLayout(&modelBindGroupLayoutDesc),
+            .entryCount = 1,
+            .entries = &entry[0]
+        };
+        bindGroup = GPUContext::getInstance()->getDevice().CreateBindGroup(&bindGroupDesc);
+    }
+
+
+    void Mesh::draw(const wgpu::RenderPassEncoder& pass, uint32_t instanceCount)
+    {
+        GPUContext::getInstance()->getQueue().WriteBuffer(
+            modelBuffer,
+            0,
+            &model,
+            modelBuffer.GetSize()
+        );
+        geometry.draw(pass, instanceCount);
+    }
+
+
+
 
 
 } // grass
