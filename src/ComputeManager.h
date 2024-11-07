@@ -14,10 +14,11 @@ namespace grass
         float idHash;
         glm::vec2 uv;
         float height;
-        float padding;
+        float relativeHeight;
         glm::vec4 c1;
         glm::vec4 c2;
-        glm::vec4 facingDirection;
+        glm::vec3 facingDirection;
+        float collisionStrength;
     };
 
     class ComputeManager

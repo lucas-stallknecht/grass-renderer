@@ -20,6 +20,7 @@ namespace grass
     {
         initGlobalResources();
         initBladeResources();
+        initSkyPipeline();
         initGrassPipeline(computeBuffer);
         initPhongPipeline();
         createDepthTextureView();
@@ -36,7 +37,10 @@ namespace grass
         };
         globalUniformBuffer = ctx->getDevice().CreateBuffer(&globalUniformBufferDesc);
 
-        wgpu::SamplerDescriptor samplerDesc = {};
+        wgpu::SamplerDescriptor samplerDesc = {
+            .magFilter = wgpu::FilterMode::Linear,
+            .minFilter = wgpu::FilterMode::Linear,
+        };
         textureSampler = ctx->getDevice().CreateSampler(&samplerDesc);
     }
 
@@ -52,6 +56,41 @@ namespace grass
             .mappedAtCreation = false,
         };
         bladeUniformBuffer = ctx->getDevice().CreateBuffer(&bladeUniformBufferDesc);
+    }
+
+
+    void Renderer::initSkyPipeline()
+    {
+        wgpu::ShaderModule skyVertModule = getShaderModule(ctx->getDevice(), "../shaders/full_screen_quad.vert.wgsl",
+                                                   "Sky Vertex Module");
+        wgpu::ShaderModule skyFragModule = getShaderModule(ctx->getDevice(), "../shaders/sky.frag.wgsl",
+                                                           "Sky Frag Module");
+
+        wgpu::BindGroupLayout bindGroupLayouts = ctx->getDevice().CreateBindGroupLayout(&globalBindGroupLayoutDesc);
+        wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &bindGroupLayouts
+        };
+        wgpu::PipelineLayout pipelineLayout = ctx->getDevice().CreatePipelineLayout(&lipelineLayoutDesc);
+
+        wgpu::RenderPipelineDescriptor skyPipelineDesc;
+        skyPipelineDesc.layout = pipelineLayout;
+        skyPipelineDesc.vertex.module = skyVertModule;
+        skyPipelineDesc.vertex.bufferCount = 1;
+        skyPipelineDesc.vertex.buffers = &defaultVertexLayout;
+
+        wgpu::ColorTargetState colorTarget;
+        colorTarget.format = ctx->getSurfaceFormat();
+
+        wgpu::FragmentState fragmentState = {
+            .module = skyFragModule,
+            .targetCount = 1,
+            .targets = &colorTarget
+        };
+        skyPipelineDesc.fragment = &fragmentState;
+
+        skyPipelineDesc.label = "Sky pipeline";
+        skyPipeline = ctx->getDevice().CreateRenderPipeline(&skyPipelineDesc);
     }
 
 
@@ -197,12 +236,12 @@ namespace grass
 
     void Renderer::initPhongPipeline()
     {
-        wgpu::ShaderModule vertModule = getShaderModule(ctx->getDevice(), "../shaders/phong.vert.wgsl",
-                                                        "Phong Vertex Module");
-        wgpu::ShaderModule fragModule = getShaderModule(ctx->getDevice(), "../shaders/phong.frag.wgsl",
-                                                        "Phong Frag Module");
+        wgpu::ShaderModule phongVertModule = getShaderModule(ctx->getDevice(), "../shaders/phong.vert.wgsl",
+                                                             "Phong Vertex Module");
+        wgpu::ShaderModule phongFragModule = getShaderModule(ctx->getDevice(), "../shaders/phong.frag.wgsl",
+                                                             "Phong Frag Module");
 
-        wgpu::RenderPipelineDescriptor pipelineDesc;
+        wgpu::RenderPipelineDescriptor phongPipelineDesc;
 
 
         wgpu::BindGroupLayout bindGroupLayouts[3] = {
@@ -215,26 +254,26 @@ namespace grass
             .bindGroupLayouts = &bindGroupLayouts[0]
         };
         wgpu::PipelineLayout pipelineLayout = ctx->getDevice().CreatePipelineLayout(&lipelineLayoutDesc);
-        pipelineDesc.layout = pipelineLayout;
+        phongPipelineDesc.layout = pipelineLayout;
 
-        pipelineDesc.vertex.module = vertModule;
-        pipelineDesc.vertex.bufferCount = 1;
-        pipelineDesc.vertex.buffers = &defaultVertexLayout;
+        phongPipelineDesc.vertex.module = phongVertModule;
+        phongPipelineDesc.vertex.bufferCount = 1;
+        phongPipelineDesc.vertex.buffers = &defaultVertexLayout;
 
         wgpu::ColorTargetState colorTarget;
         colorTarget.format = ctx->getSurfaceFormat();
 
         wgpu::FragmentState fragmentState = {
-            .module = fragModule,
+            .module = phongFragModule,
             .targetCount = 1,
             .targets = &colorTarget
         };
-        pipelineDesc.fragment = &fragmentState;
+        phongPipelineDesc.fragment = &fragmentState;
 
-        pipelineDesc.depthStencil = &defaultDepthStencil;
+        phongPipelineDesc.depthStencil = &defaultDepthStencil;
 
-        pipelineDesc.label = "Phong pipeline";
-        phongPipeline = ctx->getDevice().CreateRenderPipeline(&pipelineDesc);
+        phongPipelineDesc.label = "Phong pipeline";
+        phongPipeline = ctx->getDevice().CreateRenderPipeline(&phongPipelineDesc);
 
         // TEMPORARY
         wgpu::TextureViewDescriptor textureViewDesc = {
@@ -274,15 +313,22 @@ namespace grass
 
     void Renderer::updateGlobalUniforms(const Camera& camera, float time)
     {
+        // std::cout << "x" << camera.position.x << "/y" << camera.position.y << "/z" << camera.position.z << std::endl;
         CameraUniformData camUniforms = {
             camera.viewMatrix,
             camera.projMatrix,
             camera.position,
+            0.0,
+            camera.direction,
+            0.0,
+            glm::inverse(camera.viewMatrix),
+            glm::inverse(camera.projMatrix)
         };
         camUniforms.dir = camera.direction;
         GlobalUniformData globalUniforms = {
             camUniforms,
-            time
+            config->lightUniform,
+            time,
         };
         ctx->getQueue().WriteBuffer(globalUniformBuffer, 0, &globalUniforms, globalUniformBuffer.GetSize());
     }
@@ -294,15 +340,37 @@ namespace grass
     }
 
 
-    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
-                             const std::vector<Mesh>& scene)
+    void Renderer::drawSky(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
     {
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
             .view = targetView,
             .resolveTarget = nullptr,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = wgpu::Color{0.1, 0.1, 0.1, 1.0},
+        };
+        wgpu::RenderPassDescriptor renderPassDesc = {
+            .colorAttachmentCount = 1,
+            .colorAttachments = &renderPassColorAttachment,
+        };
+
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
+        pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
+
+        pass.SetPipeline(skyPipeline);
+        fullScreenQuad.draw(pass, 1);
+
+        pass.End();
+    }
+
+
+    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                             const std::vector<Mesh>& scene)
+    {
+        wgpu::RenderPassColorAttachment renderPassColorAttachment = {
+            .view = targetView,
+            .resolveTarget = nullptr,
+            .loadOp = wgpu::LoadOp::Load,
+            .storeOp = wgpu::StoreOp::Store,
         };
         wgpu::RenderPassDepthStencilAttachment renderPassDepthAttachment = {
             .view = depthView,
@@ -320,7 +388,7 @@ namespace grass
         pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
 
         pass.SetPipeline(phongPipeline);
-        for(auto mesh: scene)
+        for (auto mesh : scene)
         {
             pass.SetBindGroup(1, mesh.material.bindGroup, 0, nullptr);
             pass.SetBindGroup(2, mesh.bindGroup, 0, nullptr);
@@ -333,6 +401,7 @@ namespace grass
 
         pass.End();
     }
+
 
     void Renderer::drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
     {
@@ -352,7 +421,7 @@ namespace grass
     }
 
 
-    void Renderer::draw(const std::vector<Mesh>& scene)
+    void Renderer::draw(const std::vector<Mesh>& scene, const Camera& camera, float time)
     {
         wgpu::TextureView targetView = ctx->getNextSurfaceTextureView();
         if (!targetView) return;
@@ -360,6 +429,8 @@ namespace grass
         wgpu::CommandEncoderDescriptor encoderDesc;
         wgpu::CommandEncoder encoder = ctx->getDevice().CreateCommandEncoder(&encoderDesc);
 
+        updateGlobalUniforms(camera, time);
+        drawSky(encoder, targetView);
         drawScene(encoder, targetView, scene);
         drawGUI(encoder, targetView);
 

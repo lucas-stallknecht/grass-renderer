@@ -11,8 +11,14 @@ struct MovSettings {
 @group(1) @binding(0) var<uniform> movSettings: MovSettings;
 @group(1) @binding(1) var<uniform> time: f32;
 
-const sphereRadius = 0.75;
 const up = vec3f(0.0, 1.0, 0.0);
+// Spheres are just placed by hand for now
+const nSpheres: u32 = 3;
+const spheres = array<vec4f, nSpheres>(
+    vec4f(0.0, 0.86, 0.55, 0.55), // pillar next to stone
+    vec4f(1.15, 0.76, 0.55, 0.55), // pillar close to the cam
+    vec4f(-0.23, 0.82, 1.05, 0.65), // setone
+);
 
 
 fn mod289(x: vec2f) -> vec2f {
@@ -79,37 +85,45 @@ fn main(
     let c0 = bladePositions[global_invocation_index].c0;
     let height = bladePositions[global_invocation_index].height;
     let idHash = bladePositions[global_invocation_index].idHash;
+    let facingDir = bladePositions[global_invocation_index].facingDirection;
+    let collisionStrength = bladePositions[global_invocation_index].collisionStrength;
 
     var f = time * movSettings.windFrequency * movSettings.wind.xyz;
     var windNoise = 0.5 + 0.5 * (
-        simplexNoise2((c0).xz * 0.2 - f.xz ) * 0.6 +
-        simplexNoise2((c0).xz * 0.9 - f.xz ) * 0.1 +
-        simplexNoise2((c0).xz * 3.5 - f.xz) * 0.3
+        simplexNoise2((c0).xz * 0.1 - f.xz ) * 0.5 +
+        simplexNoise2((c0).xz * 0.5 - f.xz ) * 0.1 +
+        simplexNoise2((c0).xz * 3.5 - f.xz) * 0.4
     );
     var varianceFactor = mix(0.85, 1.0, idHash);
 
     //                                               taller blades will sway more distance
     var tiltVec = movSettings.wind.xyz * windNoise * (movSettings.wind.w * height) * varianceFactor;
 
-    var c1 = c0 + tiltVec + height * up;
+    var c1 = c0 + max(1.0 - collisionStrength, 0.0) * tiltVec + height * up;
     // more tilted blades should bend more
     var lproj = length(c1 - c0 - up * dot(c1 - c0, up));
-    var c2 = c0 + height * max(1.0 - lproj / height, 0.05 * max(lproj / height, 1.0)) * up;
+    var c2 = c0 + height * mix(0.25, 0.9, lproj/height) * up;
 
-    // Sphere collision
-    let sphereCenter = vec3f( cos(time), sphereRadius + 0.5 *  sin(time), sin(time));
-    let d = distance(c0, sphereCenter);
-    if (d < height + sphereRadius) {
-        var m = 0.25 * c0 + 0.5 * c2 + 0.25 * c1;
-        c1 += calcSphereTranslation(c1, sphereCenter, sphereRadius) + 4.0 * calcSphereTranslation(m, sphereCenter, sphereRadius);
+    var newCollisionStrength = 0.0;
+    // Spheres collision
+    for (var i: u32 = 0u; i < nSpheres; i = i + 1u) {
+       let sphere = spheres[i];
+       let d = distance(c0, sphere.xyz);
+           if (d < height + sphere.w) {
+               var m = 0.25 * c0 + 0.5 * c2 + 0.25 * c1;
+               var t = calcSphereTranslation(c1, sphere.xyz, sphere.w) + 4.0 * calcSphereTranslation(m, sphere.xyz, sphere.w);
+               c1 += t;
+               newCollisionStrength = max(length(t)/sphere.w, newCollisionStrength);
+           }
     }
 
     // Ground collision
     c1 -= up * min(dot(up, c1 - c0), 0.0);
     lproj = length(c1 - c0 - up * dot(c1 - c0, up));
-    c2 = c0 + height * max(1.0 - lproj / height, 0.05 * max(lproj / height, 1.0)) * up;
+    c2 = c0 + height * mix(0.25, 0.9, lproj/height) * up;
 
     bladePositions[global_invocation_index].c1 = c1;
     bladePositions[global_invocation_index].c2 = c2;
+    bladePositions[global_invocation_index].collisionStrength = newCollisionStrength;
 
 }

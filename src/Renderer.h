@@ -15,16 +15,18 @@ namespace grass
         Renderer(std::shared_ptr<GlobalConfig> config, uint16_t width, uint16_t height);
         ~Renderer() = default;
         void init(const wgpu::Buffer& computeBuffer);
-        void draw(const std::vector<Mesh>& scene);
-        void updateGlobalUniforms(const Camera& camera, float time);
+        void draw(const std::vector<Mesh>& scene, const Camera& camera, float time);
         void updateBladeUniforms(const BladeStaticUniformData& uniform);
 
     private:
         void initGlobalResources();
         void initBladeResources();
         void createDepthTextureView();
+        void initSkyPipeline();
         void initGrassPipeline(const wgpu::Buffer& computeBuffer);
         void initPhongPipeline();
+        void updateGlobalUniforms(const Camera& camera, float time);
+        void drawSky(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
         void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, const std::vector<Mesh>& scene);
         void drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
 
@@ -39,6 +41,8 @@ namespace grass
 
         wgpu::RenderPipeline phongPipeline;
 
+        wgpu::RenderPipeline skyPipeline;
+        MeshGeomoetry fullScreenQuad{"../assets/full_screen_quad.obj"};
 
         wgpu::RenderPipeline grassPipeline;
         wgpu::Buffer bladeUniformBuffer;

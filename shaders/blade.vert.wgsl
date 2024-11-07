@@ -1,5 +1,4 @@
 @group(0) @binding(0) var<uniform> global: Global;
-@group(1) @binding(0) var<uniform> settings: BladeSettings;
 @group(1) @binding(2) var<storage, read> bladePositions: array<Blade>;
 
 
@@ -31,7 +30,7 @@ fn vertex_main(
     var c1 = blade.c1;
     let bobbingAmplitude = 0.2 * distance(blade.c0.xz, blade.c1.xz) / blade.height;
     let bobbingPhase = blade.idHash * pos.y;
-    let bobbingFreq = 0.0;
+    let bobbingFreq = 0.8;
     // Bobbing up and down gives a better swaying effect than just tilting uniformally
     c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (global.time + bobbingPhase));
 
@@ -63,18 +62,18 @@ fn vertex_main(
     var viewSpaceShiftFactor = smoothstep(0.4, 1.0, abs(viewDotTangent));
     // We used to shift the vert in view space but this caused weird z-fighting. We do it in world space now.
     var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * 0.3;
-    // worldPos.x += thicknessAmount * modifiedNormal.x;
-    // worldPos.z += thicknessAmount * modifiedNormal.z;
+     worldPos.x += thicknessAmount * modifiedNormal.x;
+     worldPos.z += thicknessAmount * modifiedNormal.z;
     var mvPos = global.cam.view * worldPos;
 
     var output: BladeVertexOut;
     output.position = global.cam.proj * mvPos;
     output.worldPosition = worldPos.xyz / worldPos.w;
     output.texCoord = texCoord;
-    output.height = pos.y;
+    output.relativeHeight = blade.relativeHeight;
+    output.AOValue = smoothstep(0.0, 1.0, pos.y);
     output.normal = modifiedNormal;
     output.tangent = tangent;
     output.bitangent = bitangent;
-    output.color = vec3f(distance(c1.x, blade.c0.x));
     return output;
 }

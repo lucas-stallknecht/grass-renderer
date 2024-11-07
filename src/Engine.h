@@ -19,8 +19,8 @@ namespace grass
     class Engine
     {
 
-    const uint16_t WIDTH = 1400;
-    const uint16_t HEIGHT = 800;
+    const uint16_t WIDTH = 1800;
+    const uint16_t HEIGHT = 950;
 
     public:
         static Engine& Get();

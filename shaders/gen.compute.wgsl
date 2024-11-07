@@ -144,6 +144,7 @@ fn main(
     var blade: Blade;
     blade.c0 = pos;
     blade.height = ySize;
+    blade.relativeHeight = randomYSizeAddition;
     // This might change with clumps !
     blade.facingDirection = vec3f(cos(randValue * radians(720.0)), 0.0, sin(randValue * radians(720.0)));
     blade.idHash = randValue;

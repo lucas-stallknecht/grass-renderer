@@ -24,26 +24,30 @@ fn fragment_main(
     normal = normal * 2.0 - 1.0;
     normal = normalize(tangentToWorld * normal);
 
-    var ambientCol = settings.ambientStrength * settings.lightCol;
+    var ambientCol = settings.ambientStrength * mix(
+        global.light.skyGroundCol,
+        global.light.skyUpCol,
+        normal.y * 0.5 + 0.5
+    );
 
     // TODO change constant up vector with terrain normal
     // Blend normal towards up vector for homogen diffuse
-    var NdotL = dot(settings.lightDirection, mix(normal, vec3f(0.0, 1.0, 0.0), 0.7));
+    var NdotL = dot(global.light.sunDir, mix(normal, vec3f(0.0, 1.0, 0.0), 0.7));
     // Wrapped diffuse
     var diff = max(0.0, (NdotL + settings.wrapValue) / (1.0 + settings.wrapValue));
-    var diffuseCol = settings.diffuseStrength * diff * settings.lightCol;
+    var diffuseCol = settings.diffuseStrength * diff * global.light.sunCol;
 
     // Blinn-Phong specular
-    var halfwayDir = normalize(settings.lightDirection - normalize((in.worldPosition - global.cam.position)));
+    var halfwayDir = normalize(global.light.sunDir - normalize((in.worldPosition - global.cam.position)));
     var spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
     var specCol = settings.specularStrength * spec * settings.specularCol;
 
-    var AO = mix(vec3f(0.2), vec3f(1.0), smoothstep(0.0, 1.0, in.height));
+    var AO = mix(vec3f(0.2), vec3f(1.0), in.AOValue);
 
-    var fogFactor = 1.0 - pow(2.0, -pow(0.09 * distance(global.cam.position, in.worldPosition), 2.0));
+    var fogFactor = 1.0 - pow(4.0, -pow(0.09 * distance(global.cam.position, in.worldPosition), 4.0));
 
-    var col = ((ambientCol + diffuseCol) * AO) * settings.bladeCol + specCol;
-    col = mix(col, vec3f(0.1), fogFactor);
+    var col = ((ambientCol + diffuseCol) * AO) * mix(settings.smallerBladeCol, settings.tallerBladeCol, in.relativeHeight) + specCol;
+    col = mix(col, global.light.skyGroundCol, fogFactor);
     // col = in.color;
     return vec4f(col, 1.0);
 }

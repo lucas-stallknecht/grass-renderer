@@ -27,7 +27,6 @@ public:
 
     MeshGeomoetry geometry;
     PhongMaterial material;
-    glm::vec3 position{};
     glm::mat4 model = glm::mat4(1.0f);
 
     wgpu::Buffer modelBuffer;
