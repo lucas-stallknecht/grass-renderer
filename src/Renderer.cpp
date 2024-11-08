@@ -20,10 +20,11 @@ namespace grass
     {
         initGlobalResources();
         initBladeResources();
+        createDepthTextureView();
         initSkyPipeline();
         initGrassPipeline(computeBuffer);
         initPhongPipeline();
-        createDepthTextureView();
+        initSSSPipeline();
     }
 
 
@@ -62,12 +63,13 @@ namespace grass
     void Renderer::initSkyPipeline()
     {
         wgpu::ShaderModule skyVertModule = getShaderModule(ctx->getDevice(), "../shaders/full_screen_quad.vert.wgsl",
-                                                   "Sky Vertex Module");
+                                                           "Sky Vertex Module");
         wgpu::ShaderModule skyFragModule = getShaderModule(ctx->getDevice(), "../shaders/sky.frag.wgsl",
                                                            "Sky Frag Module");
 
         wgpu::BindGroupLayout bindGroupLayouts = ctx->getDevice().CreateBindGroupLayout(&globalBindGroupLayoutDesc);
         wgpu::PipelineLayoutDescriptor lipelineLayoutDesc = {
+            .label = "Sky pipeline",
             .bindGroupLayoutCount = 1,
             .bindGroupLayouts = &bindGroupLayouts
         };
@@ -78,6 +80,7 @@ namespace grass
         skyPipelineDesc.vertex.module = skyVertModule;
         skyPipelineDesc.vertex.bufferCount = 1;
         skyPipelineDesc.vertex.buffers = &defaultVertexLayout;
+        skyPipelineDesc.multisample.count = MULTI_SAMPLE_COUNT;
 
         wgpu::ColorTargetState colorTarget;
         colorTarget.format = ctx->getSurfaceFormat();
@@ -169,6 +172,8 @@ namespace grass
         };
         pipelineDesc.fragment = &fragmentState;
 
+
+        pipelineDesc.multisample.count = MULTI_SAMPLE_COUNT;
         pipelineDesc.depthStencil = &defaultDepthStencil;
 
         pipelineDesc.label = "Blade of grass pipeline";
@@ -186,7 +191,7 @@ namespace grass
 
         // --- Bind group ---
         // The "real" bindings between the buffer and the shader locs, not just the layout
-        wgpu::BindGroupEntry globalEntries[2] = {
+        wgpu::BindGroupEntry globalEntries[3] = {
             {
                 .binding = 0,
                 .buffer = globalUniformBuffer,
@@ -271,6 +276,8 @@ namespace grass
         phongPipelineDesc.fragment = &fragmentState;
 
         phongPipelineDesc.depthStencil = &defaultDepthStencil;
+        phongPipelineDesc.multisample.count = MULTI_SAMPLE_COUNT;
+
 
         phongPipelineDesc.label = "Phong pipeline";
         phongPipeline = ctx->getDevice().CreateRenderPipeline(&phongPipelineDesc);
@@ -286,15 +293,132 @@ namespace grass
     }
 
 
+    void Renderer::initSSSPipeline()
+    {
+        wgpu::ShaderModule sssVertModule = getShaderModule(ctx->getDevice(), "../shaders/full_screen_quad.vert.wgsl",
+                                                           "SSS Vertex Module");
+        wgpu::ShaderModule sssFragModule = getShaderModule(ctx->getDevice(),
+                                                           "../shaders/screen_space_shadows.frag.wgsl",
+                                                           "SSS Frag Module");
+
+        wgpu::BindGroupLayoutEntry layoutEntry[3] = {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .sampler = {
+                    .type = wgpu::SamplerBindingType::Comparison
+                }
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .texture = {
+                    .sampleType = wgpu::TextureSampleType::Depth,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .multisampled = false
+                }
+            },
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer = {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(config->sssUniform),
+                }
+            }
+        };
+        wgpu::BindGroupLayoutDescriptor sssBindGroupLayoutDesc = {
+            .label = "SSS Bind Group layout",
+            .entryCount = 3,
+            .entries = &layoutEntry[0]
+        };
+        wgpu::BindGroupLayout sssBindGroupLayout = ctx->getDevice().CreateBindGroupLayout(&sssBindGroupLayoutDesc);
+
+        wgpu::BindGroupLayout bindGroupLayouts[2] = {
+            ctx->getDevice().CreateBindGroupLayout(&globalBindGroupLayoutDesc),
+            sssBindGroupLayout
+        };
+        wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
+            .label = "SSS pipeline",
+            .bindGroupLayoutCount = 2,
+            .bindGroupLayouts = &bindGroupLayouts[0]
+        };
+        wgpu::PipelineLayout pipelineLayout = ctx->getDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+
+        wgpu::RenderPipelineDescriptor sssPipelineDesc;
+        sssPipelineDesc.layout = pipelineLayout;
+        sssPipelineDesc.vertex.module = sssVertModule;
+        sssPipelineDesc.vertex.bufferCount = 1;
+        sssPipelineDesc.vertex.buffers = &defaultVertexLayout;
+
+        wgpu::BlendState blendState = {
+            .color = {
+                .operation = wgpu::BlendOperation::Add,
+                .srcFactor = wgpu::BlendFactor::SrcAlpha,
+                .dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha,
+            }
+        };
+        wgpu::ColorTargetState colorTarget = {
+            .format = ctx->getSurfaceFormat(),
+            .blend = &blendState
+        };
+
+        wgpu::FragmentState fragmentState = {
+            .module = sssFragModule,
+            .targetCount = 1,
+            .targets = &colorTarget
+        };
+        sssPipelineDesc.fragment = &fragmentState;
+
+        sssPipelineDesc.label = "SSS pipeline";
+        sssPipeline = ctx->getDevice().CreateRenderPipeline(&sssPipelineDesc);
+
+
+        wgpu::SamplerDescriptor depthSamplerDesc = {
+            .compare = wgpu::CompareFunction::Less
+        };
+        wgpu::Sampler depthSampler = ctx->getDevice().CreateSampler(&depthSamplerDesc);
+
+        wgpu::BufferDescriptor bufferDesc = {
+            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            .size = sizeof(config->sssUniform),
+            .mappedAtCreation = false
+        };
+        sssBuffer = ctx->getDevice().CreateBuffer(&bufferDesc);
+        wgpu::BindGroupEntry entries[3] = {
+            {
+                .binding = 0,
+                .sampler = depthSampler
+            },
+            {
+                .binding = 1,
+                .textureView = depthView
+            },
+            {
+                .binding = 2,
+                .buffer = sssBuffer
+            }
+        };
+        wgpu::BindGroupDescriptor bindGroupDesc = {
+            .label = "SSS Bind group",
+            .layout = sssBindGroupLayout,
+            .entryCount = 3,
+            .entries = &entries[0]
+        };
+        sssBindGroup = ctx->getDevice().CreateBindGroup(&bindGroupDesc);
+    }
+
+
     void Renderer::createDepthTextureView()
     {
         wgpu::TextureDescriptor depthTextureDesc = {
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::TextureBinding,
             .dimension = wgpu::TextureDimension::e2D,
             .size = {size.width, size.height, 1},
             .format = wgpu::TextureFormat::Depth24Plus,
             .mipLevelCount = 1,
-            .sampleCount = 1,
+            .sampleCount = MULTI_SAMPLE_COUNT,
         };
         wgpu::Texture depthTexture = ctx->getDevice().CreateTexture(&depthTextureDesc);
 
@@ -313,7 +437,6 @@ namespace grass
 
     void Renderer::updateGlobalUniforms(const Camera& camera, float time)
     {
-        // std::cout << "x" << camera.position.x << "/y" << camera.position.y << "/z" << camera.position.z << std::endl;
         CameraUniformData camUniforms = {
             camera.viewMatrix,
             camera.projMatrix,
@@ -363,8 +486,7 @@ namespace grass
     }
 
 
-    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
-                             const std::vector<Mesh>& scene)
+    void Renderer::drawGrass(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
     {
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {
             .view = targetView,
@@ -386,6 +508,55 @@ namespace grass
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
         pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
+        pass.SetPipeline(grassPipeline);
+        pass.SetBindGroup(1, grassBindGroup, 0, nullptr);
+        bladeGeometry.draw(pass, config->totalBlades);
+
+        pass.End();
+
+        wgpu::RenderPassColorAttachment imGuiColorAttachment = {
+            .view = targetView,
+            .loadOp = wgpu::LoadOp::Load,
+            .storeOp = wgpu::StoreOp::Store,
+        };
+        wgpu::RenderPassDescriptor imGuiRenderPassDesc = {
+            .label = "SSS Render Pass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &imGuiColorAttachment,
+        };
+        wgpu::RenderPassEncoder pass2 = encoder.BeginRenderPass(&imGuiRenderPassDesc);
+        pass2.SetPipeline(sssPipeline);
+        pass2.SetBindGroup(0, globalBindGroup, 0, nullptr);
+        pass2.SetBindGroup(1, sssBindGroup, 0, nullptr);
+
+        fullScreenQuad.draw(pass2, 1);
+
+        pass2.End();
+
+    }
+
+    void Renderer::drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                             const std::vector<Mesh>& scene)
+    {
+        wgpu::RenderPassColorAttachment renderPassColorAttachment = {
+            .view = targetView,
+            .resolveTarget = nullptr,
+            .loadOp = wgpu::LoadOp::Load,
+            .storeOp = wgpu::StoreOp::Store,
+        };
+        wgpu::RenderPassDepthStencilAttachment renderPassDepthAttachment = {
+            .view = depthView,
+            .depthLoadOp = wgpu::LoadOp::Load,
+            .depthStoreOp = wgpu::StoreOp::Store,
+        };
+        wgpu::RenderPassDescriptor renderPassDesc = {
+            .colorAttachmentCount = 1,
+            .colorAttachments = &renderPassColorAttachment,
+            .depthStencilAttachment = &renderPassDepthAttachment,
+        };
+
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPassDesc);
+        pass.SetBindGroup(0, globalBindGroup, 0, nullptr);
 
         pass.SetPipeline(phongPipeline);
         for (auto mesh : scene)
@@ -395,12 +566,9 @@ namespace grass
             mesh.draw(pass, 1);
         }
 
-        pass.SetPipeline(grassPipeline);
-        pass.SetBindGroup(1, grassBindGroup, 0, nullptr);
-        bladeGeometry.draw(pass, config->totalBlades);
-
         pass.End();
     }
+
 
 
     void Renderer::drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
@@ -415,14 +583,30 @@ namespace grass
             .colorAttachmentCount = 1,
             .colorAttachments = &imGuiColorAttachment,
         };
-        wgpu::RenderPassEncoder imGuiPass = encoder.BeginRenderPass(&imGuiRenderPassDesc);
-        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), imGuiPass.Get());
-        imGuiPass.End();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&imGuiRenderPassDesc);
+
+        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass.Get());
+
+        pass.End();
     }
 
 
-    void Renderer::draw(const std::vector<Mesh>& scene, const Camera& camera, float time)
+    void Renderer::render(const std::vector<Mesh>& scene, const Camera& camera, float time)
     {
+        if (!multisampleTexture)
+        {
+            wgpu::TextureDescriptor msTextureDesc = {
+                .usage = wgpu::TextureUsage::RenderAttachment,
+                .size = {size.width, size.height, 1},
+                .format = ctx->getSurfaceFormat(),
+                .sampleCount = MULTI_SAMPLE_COUNT
+            };
+            multisampleTexture = ctx->getDevice().CreateTexture(&msTextureDesc);
+        }
+
+        ctx->getQueue().WriteBuffer(sssBuffer, 0, &config->sssUniform,  sssBuffer.GetSize());
+
+
         wgpu::TextureView targetView = ctx->getNextSurfaceTextureView();
         if (!targetView) return;
 
@@ -431,7 +615,10 @@ namespace grass
 
         updateGlobalUniforms(camera, time);
         drawSky(encoder, targetView);
+        drawGrass(encoder, targetView);
         drawScene(encoder, targetView, scene);
+
+
         drawGUI(encoder, targetView);
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {

@@ -215,6 +215,11 @@ namespace grass
             ImGui::ColorEdit3("Sun color", &config->lightUniform.sunCol.r, 0);
             ImGui::ColorEdit3("Sky up color", &config->lightUniform.skyUpCol.r, 0);
             ImGui::ColorEdit3("Sky ground color", &config->lightUniform.skyGroundCol.r, 0);
+
+            ImGui::SliderFloat("Ray max distance", &config->sssUniform.ray_max_distance, 0.0, 2.0, "%.3f");
+            ImGui::SliderFloat("Thickness", &config->sssUniform.thickness, 0.0, 0.1, "%.5f");
+            ImGui::SliderFloat("Nax delta from original depth", &config->sssUniform.max_delta_from_original_depth, 0.0, 0.01, "%.5f");
+            ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->sssUniform.max_steps), 0, 32);
             ImGui::End();
         }
         ImGui::EndFrame();
@@ -227,6 +232,7 @@ namespace grass
         computeManager->generate();
         computeManager->updateMovSettingsUniorm();
         renderer->updateBladeUniforms(config->bladeUniform);
+        computeManager->computeMovement(time);
         updateGUI();
 
 
@@ -247,7 +253,7 @@ namespace grass
             camera.updateMatrix();
 
             computeManager->computeMovement(time);
-            renderer->draw(scene, camera, time);
+            renderer->render(scene, camera, time);
 
             updateGUI();
             frameNumber++;

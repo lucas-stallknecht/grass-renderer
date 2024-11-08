@@ -10,15 +10,16 @@ fn fragment_main(
     in: VertexOut
     ) -> @location(0) vec4f
 {
-    var ndcPos = vec4f(in.texCoord * 2.0 - vec2f(1.0), 1.0, 1.0);
+    // normalized device coordinates (NDC) position
+    let ndcPos = vec4f(in.texCoord * 2.0 - vec2f(1.0), 1.0, 1.0);
 
-    var tar = global.cam.invProj * ndcPos;
-    var normalizedTarget = normalize(tar.xyz / tar.w);
-    var viewVec = (global.cam.invView * vec4f(normalizedTarget, 0.0)).xyz;
-    var upFactor = max(dot(viewVec, vec3f(0.0, 1.0, 0.0)), 0.0);
-    upFactor = easeOutExpo(upFactor);
+    let viewPos = global.cam.invProj * ndcPos;
+    let viewDirection = normalize(viewPos.xyz / viewPos.w);
 
+    let worldViewDir = (global.cam.invView * vec4f(viewDirection, 0.0)).xyz;
 
-    var col = mix(global.light.skyGroundCol, global.light.skyUpCol, upFactor);
-    return vec4f(col, 1.0);
+    let upFactor = easeOutExpo(max(dot(worldViewDir, vec3f(0.0, 1.0, 0.0)), 0.0));
+    let color = mix(global.light.skyGroundCol, global.light.skyUpCol, upFactor);
+
+    return vec4f(color, 1.0);
 }

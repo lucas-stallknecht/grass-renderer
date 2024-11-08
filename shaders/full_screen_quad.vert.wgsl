@@ -1,5 +1,3 @@
-@group(0) @binding(0) var<uniform> global: Global;
-
 @vertex
 fn vertex_main(
     @builtin(instance_index) instanceIndex: u32,
@@ -9,7 +7,7 @@ fn vertex_main(
     ) -> VertexOut
 {
     var output: VertexOut;
-    output.position = vec4(pos, 1.0);;
+    output.position = vec4(pos, 1.0);
     output.texCoord = texCoord;
     return output;
 }

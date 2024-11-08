@@ -30,7 +30,7 @@ fn vertex_main(
     var c1 = blade.c1;
     let bobbingAmplitude = 0.2 * distance(blade.c0.xz, blade.c1.xz) / blade.height;
     let bobbingPhase = blade.idHash * pos.y;
-    let bobbingFreq = 0.8;
+    let bobbingFreq = 0.0;
     // Bobbing up and down gives a better swaying effect than just tilting uniformally
     c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (global.time + bobbingPhase));
 
@@ -75,5 +75,6 @@ fn vertex_main(
     output.normal = modifiedNormal;
     output.tangent = tangent;
     output.bitangent = bitangent;
+    output.viewPos = mvPos.xyz / mvPos.w;
     return output;
 }

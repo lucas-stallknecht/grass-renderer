@@ -11,11 +11,13 @@ namespace grass
 {
     class Renderer
     {
+        const uint32_t MULTI_SAMPLE_COUNT = 1;
+
     public:
         Renderer(std::shared_ptr<GlobalConfig> config, uint16_t width, uint16_t height);
         ~Renderer() = default;
         void init(const wgpu::Buffer& computeBuffer);
-        void draw(const std::vector<Mesh>& scene, const Camera& camera, float time);
+        void render(const std::vector<Mesh>& scene, const Camera& camera, float time);
         void updateBladeUniforms(const BladeStaticUniformData& uniform);
 
     private:
@@ -25,14 +27,17 @@ namespace grass
         void initSkyPipeline();
         void initGrassPipeline(const wgpu::Buffer& computeBuffer);
         void initPhongPipeline();
+        void initSSSPipeline();
         void updateGlobalUniforms(const Camera& camera, float time);
         void drawSky(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
+        void drawGrass(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
         void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, const std::vector<Mesh>& scene);
         void drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
 
         std::shared_ptr<GlobalConfig> config;
         GPUContext* ctx = nullptr;
         wgpu::Extent2D size;
+        wgpu::Texture multisampleTexture;
         wgpu::TextureView depthView;
         wgpu::Sampler textureSampler;
 
@@ -49,5 +54,9 @@ namespace grass
         wgpu::BindGroup grassBindGroup;
         wgpu::Texture bladeNormalTexture;
         MeshGeomoetry bladeGeometry{"../assets/grass_blade.obj"};
+
+        wgpu::RenderPipeline sssPipeline;
+        wgpu::BindGroup sssBindGroup;
+        wgpu::Buffer sssBuffer;
     };
 } // grass

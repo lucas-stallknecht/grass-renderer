@@ -52,6 +52,7 @@ struct BladeVertexOut {
     @location(4) AOValue: f32,
     @location(5) tangent: vec3f,
     @location(6) bitangent: vec3f,
+    @location(7) viewPos: vec3f,
 }
 
 struct VertexOut {

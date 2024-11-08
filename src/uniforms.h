@@ -23,7 +23,7 @@ namespace grass
     struct GrassMovUniformData
     {
         // vec3 direction + strength
-        glm::vec4 wind = {0.5, 0.0, -0.5, 0.75};
+        glm::vec4 wind = {0.8, 0.0, -0.5, 0.65};
         float windFrequency = 0.8;
         glm::vec3 padding;
     };
@@ -46,7 +46,8 @@ namespace grass
         CameraUniformData camera;
         LightUniformData light;
         float time;
-        glm::vec3 padding;
+        uint32_t frameNumber;
+        glm::vec2 padding;
     };
 
 
@@ -54,12 +55,19 @@ namespace grass
     {
         glm::vec3 smallerBladeCol = {0.824f, 0.697f, 0.424f};
         float ambientStrength = 0.3;
-        // glm::vec3 tallerBladeCol = {1.0, 0.918, 0.741};
         glm::vec3 tallerBladeCol = {0.971f, 0.912f, 0.785f};
         float wrapValue = 1.0;
         glm::vec3 specularCol = {1.0, 0.88, 0.88};
         float specularStrength = 0.15;
         float diffuseStrength = 0.8;
         glm::vec3 padding;
+    };
+
+    struct ScreenSpaceShadowsUniformData
+    {
+        uint32_t max_steps = 32;
+        float ray_max_distance = 2.00;
+        float thickness = 0.1;
+        float max_delta_from_original_depth = 0.01;
     };
 }
