@@ -10,7 +10,7 @@ namespace grass
     struct GrassGenUniformData
     {
         // Field settings
-        float sideLength = 10.0;
+        float sideLength = 30.0;
         float density = 15.0; // blades per unit
         float maxNoisePositionOffset = 0.2;
         float sizeNoiseFrequency = 0.3;

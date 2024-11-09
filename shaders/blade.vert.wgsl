@@ -1,5 +1,5 @@
 @group(0) @binding(0) var<uniform> global: Global;
-@group(1) @binding(2) var<storage, read> bladePositions: array<Blade>;
+@group(1) @binding(1) var<storage, read> bladePositions: array<Blade>;
 
 
 fn bezier(t: f32, c0: vec3f,  c1: vec3f,  c2: vec3f) -> vec3f {
@@ -75,6 +75,6 @@ fn vertex_main(
     output.normal = modifiedNormal;
     output.tangent = tangent;
     output.bitangent = bitangent;
-    output.viewPos = mvPos.xyz / mvPos.w;
+    output.uvPos = global.cam.proj * mvPos;
     return output;
 }

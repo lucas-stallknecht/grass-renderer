@@ -206,7 +206,7 @@ namespace grass
             bladeChange |= ImGui::SliderFloat("Specular", &config->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
             if (bladeChange)
             {
-                renderer->updateBladeUniforms(config->bladeUniform);
+                renderer->updateBladeUniforms();
             }
             ImGui::End();
 
@@ -215,11 +215,15 @@ namespace grass
             ImGui::ColorEdit3("Sun color", &config->lightUniform.sunCol.r, 0);
             ImGui::ColorEdit3("Sky up color", &config->lightUniform.skyUpCol.r, 0);
             ImGui::ColorEdit3("Sky ground color", &config->lightUniform.skyGroundCol.r, 0);
-
-            ImGui::SliderFloat("Ray max distance", &config->sssUniform.ray_max_distance, 0.0, 2.0, "%.3f");
-            ImGui::SliderFloat("Thickness", &config->sssUniform.thickness, 0.0, 0.1, "%.5f");
-            ImGui::SliderFloat("Nax delta from original depth", &config->sssUniform.max_delta_from_original_depth, 0.0, 0.01, "%.5f");
-            ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->sssUniform.max_steps), 0, 32);
+            bool shadowChange = false;
+            shadowChange |= ImGui::SliderFloat("Ray max distance", &config->shadowUniform.ray_max_distance, 0.0, 2.0, "%.3f");
+            shadowChange |= ImGui::SliderFloat("Thickness", &config->shadowUniform.thickness, 0.0, 0.1, "%.5f");
+            shadowChange |= ImGui::SliderFloat("Nax delta from original depth", &config->shadowUniform.max_delta_from_original_depth, 0.0, 0.01, "%.5f");
+            shadowChange |= ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->shadowUniform.max_steps), 0, 32);
+            if (shadowChange)
+            {
+                renderer->updateShadowUniforms();
+            }
             ImGui::End();
         }
         ImGui::EndFrame();
@@ -231,10 +235,8 @@ namespace grass
     {
         computeManager->generate();
         computeManager->updateMovSettingsUniorm();
-        renderer->updateBladeUniforms(config->bladeUniform);
         computeManager->computeMovement(time);
         updateGUI();
-
 
         PhongMaterial testMat{loadTexture("../assets/portal_color.png")};
         auto testCubeGeo = MeshGeomoetry("../assets/portal.obj");
@@ -253,7 +255,7 @@ namespace grass
             camera.updateMatrix();
 
             computeManager->computeMovement(time);
-            renderer->render(scene, camera, time);
+            renderer->render(scene, camera, time, frameNumber);
 
             updateGUI();
             frameNumber++;

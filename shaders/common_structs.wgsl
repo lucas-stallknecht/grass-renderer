@@ -30,7 +30,7 @@ struct Global {
     cam: Camera,
     light: Light,
     time: f32,
-    maxGrassHeight: f32,
+    frameNumber: u32,
 }
 
 struct BladeSettings {
@@ -52,7 +52,7 @@ struct BladeVertexOut {
     @location(4) AOValue: f32,
     @location(5) tangent: vec3f,
     @location(6) bitangent: vec3f,
-    @location(7) viewPos: vec3f,
+    @location(7) uvPos: vec4f,
 }
 
 struct VertexOut {

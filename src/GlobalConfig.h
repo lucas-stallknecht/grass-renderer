@@ -16,7 +16,7 @@ namespace grass {
         GrassMovUniformData movUniform{};
         BladeStaticUniformData bladeUniform{};
         LightUniformData lightUniform{};
-        ScreenSpaceShadowsUniformData sssUniform{};
+        ScreenSpaceShadowsUniformData shadowUniform{};
         size_t bladesPerSide{};
         size_t totalBlades{};
     };
