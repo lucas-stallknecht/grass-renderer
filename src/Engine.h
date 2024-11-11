@@ -19,11 +19,11 @@ namespace grass
     class Engine
     {
 
-    const uint16_t WIDTH = 1800;
-    const uint16_t HEIGHT = 950;
+    const uint16_t WIDTH = 1600;
+    const uint16_t HEIGHT = 900;
 
     public:
-        static Engine& Get();
+        static Engine& getInstance();
 
         void init();
         void run();
@@ -52,7 +52,7 @@ namespace grass
         // Controls
         bool focused = false;
         bool *keysArePressed = nullptr;
-        bool firstMouse = true;
+        bool isFirstMouseMove = true;
         glm::vec2 lastMousePosition = glm::vec2();
     };
 } // grass

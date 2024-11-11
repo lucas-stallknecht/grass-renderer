@@ -1,7 +1,6 @@
 #include "ComputeManager.h"
 
 #include "Utils.h"
-#include <iostream>
 
 namespace grass
 {
@@ -279,7 +278,6 @@ namespace grass
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
             .label = "Compute operations command buffer"
         };
-        // Submit the command buffer
         wgpu::CommandBuffer command = encoder.Finish(&cmdBufferDescriptor);
         ctx->getQueue().Submit(1, &command);
     }

@@ -10,7 +10,7 @@ namespace grass
     struct GrassGenUniformData
     {
         // Field settings
-        float sideLength = 30.0;
+        float sideLength = 10.0;
         float density = 15.0; // blades per unit
         float maxNoisePositionOffset = 0.2;
         float sizeNoiseFrequency = 0.3;
@@ -23,7 +23,7 @@ namespace grass
     struct GrassMovUniformData
     {
         // vec3 direction + strength
-        glm::vec4 wind = {0.8, 0.0, -0.5, 0.65};
+        glm::vec4 wind = {0.8, 0.0, -0.5, 0.75};
         float windFrequency = 0.8;
         glm::vec3 padding;
     };
@@ -31,11 +31,11 @@ namespace grass
     // Rendering uniforms
     struct LightUniformData
     {
-        glm::vec3 skyUpCol = {0.515, 0.772, 1.00};
+        glm::vec3 skyUpCol = {0.275, 0.659, 1.00};
         float padding1;
         glm::vec3 skyGroundCol = {0.863, 0.952, 1.0};
         float padding2;
-        glm::vec3 sunCol = {1, 0.896, 0.740};
+        glm::vec3 sunCol = {1.0, 0.886, 0.716};
         float padding3;
         glm::vec3 sunDir = {0.2, 1.0, 0.2};
         float padding4;
@@ -53,14 +53,15 @@ namespace grass
 
     struct BladeStaticUniformData
     {
-        glm::vec3 smallerBladeCol = {0.824f, 0.697f, 0.424f};
+        glm::vec3 smallerBladeCol = {0.794, 0.641, 0.311};
         float ambientStrength = 0.3;
-        glm::vec3 tallerBladeCol = {0.971f, 0.912f, 0.785f};
+        glm::vec3 tallerBladeCol = {1.0, 0.913, 0.725};
         float wrapValue = 1.0;
-        glm::vec3 specularCol = {1.0, 0.88, 0.88};
+        glm::vec3 specularCol = {1.0, 0.968, 0.863};
         float specularStrength = 0.15;
         float diffuseStrength = 0.8;
-        glm::vec3 padding;
+        float shadows = 1.0; // 0.0 or 1.0
+        glm::vec2 padding;
     };
 
     struct ScreenSpaceShadowsUniformData

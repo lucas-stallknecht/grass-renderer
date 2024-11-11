@@ -1,4 +1,7 @@
 /cmake-build-debug/
+/cmake-build-release/
+/build-debug/
+/build-release/
+/build/
 /.idea/
-/dawn/
-/third_party/
+/third_party/dawn/

@@ -41,6 +41,7 @@ struct BladeSettings {
     specularCol: vec3f,
     specularStrength: f32,
     diffuseStrength: f32,
+    useShadows: f32,
 }
 
 struct BladeVertexOut {

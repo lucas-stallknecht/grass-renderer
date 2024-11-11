@@ -15,9 +15,9 @@ const up = vec3f(0.0, 1.0, 0.0);
 // Spheres are just placed by hand for now
 const nSpheres: u32 = 3;
 const spheres = array<vec4f, nSpheres>(
-    vec4f(0.0, 0.86, 0.55, 0.55), // pillar next to stone
-    vec4f(1.15, 0.71, 0.55, 0.55), // pillar close to the cam
-    vec4f(-0.23, 0.82, 1.05, 0.65), // setone
+    vec4f(-0.23, 0.42, 1.15, 0.7), // stone
+    vec4f(0.0, 0.86, 0.55, 0.6), // pillar next to stone
+    vec4f(1.22, 0.88, 0.5, 0.6), // pillar close to the cam
 );
 
 

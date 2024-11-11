@@ -2,19 +2,17 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #include "Utils.h"
-
 #include <cassert>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
-
 #include "Mesh.h"
 
 namespace grass
 {
     Engine* loadedEngine = nullptr;
-    Engine& Engine::Get() { return *loadedEngine; }
+    Engine& Engine::getInstance() { return *loadedEngine; }
 
 
     void Engine::init()
@@ -94,16 +92,15 @@ namespace grass
 
     void Engine::mouseCallback(GLFWwindow* window, float xpos, float ypos)
     {
-        // is right-clicked basically
         if (!focused)
             return;
 
         // the mouse was not focused the frame before
-        if (firstMouse)
+        if (isFirstMouseMove)
         {
             lastMousePosition.x = xpos;
             lastMousePosition.y = ypos;
-            firstMouse = false;
+            isFirstMouseMove = false;
         }
         float xOffset = xpos - lastMousePosition.x;
         float yOffset = lastMousePosition.y - ypos;
@@ -125,7 +122,7 @@ namespace grass
         if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
         {
             focused = false;
-            firstMouse = true;
+            isFirstMouseMove = true;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }
@@ -159,6 +156,10 @@ namespace grass
         {
             camera.moveUp(deltaTime);
         }
+        if (keysArePressed['G'] && focused)
+        {
+            renderer->toggleGUI();
+        }
     }
 
 
@@ -168,61 +169,74 @@ namespace grass
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            ImGui::Begin("Generation settings");
+            ImGui::Begin("Settings");
             ImGui::Text("Number of blades : %i", config->totalBlades);
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io->Framerate, io->Framerate);
-            bool genChange = false;
-            genChange |= ImGui::SliderFloat("Height noise scale", &config->grassUniform.sizeNoiseFrequency, 0.02, 0.7,
-                                            "%.2f");
-            genChange |= ImGui::SliderFloat("Base height", &config->grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
-            genChange |= ImGui::SliderFloat("Height Delta", &config->grassUniform.sizeNoiseAmplitude, 0.05, 0.60,
-                                            "%.2f");
-            if (genChange)
+            if (ImGui::CollapsingHeader("Generation", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                computeManager->generate();
+                bool genChange = false;
+                genChange |= ImGui::SliderFloat("Height noise scale", &config->grassUniform.sizeNoiseFrequency, 0.02,
+                                                0.7,
+                                                "%.2f");
+                genChange |= ImGui::SliderFloat("Base height", &config->grassUniform.bladeHeight, 0.1, 2.0, "%.1f");
+                genChange |= ImGui::SliderFloat("Height Delta", &config->grassUniform.sizeNoiseAmplitude, 0.05, 0.60,
+                                                "%.2f");
+                if (genChange)
+                {
+                    computeManager->generate();
+                }
             }
-            ImGui::End();
 
-            ImGui::Begin("Wind settings");
-            bool movChange = false;
-            movChange |= ImGui::SliderFloat3("Direction", &config->movUniform.wind.r, -1.0, 1.0, "%.1f");
-            movChange |= ImGui::SliderFloat("Strength", &config->movUniform.wind.w, 0.01, 1.0, "%.2f");
-            movChange |= ImGui::SliderFloat("Frequency", &config->movUniform.windFrequency, 0.01, 2.0, "%.2f");
-            if (movChange)
+            if (ImGui::CollapsingHeader("Wind", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                computeManager->updateMovSettingsUniorm();
+                bool movChange = false;
+                movChange |= ImGui::SliderFloat3("Direction", &config->movUniform.wind.r, -1.0, 1.0, "%.1f");
+                movChange |= ImGui::SliderFloat("Strength", &config->movUniform.wind.w, 0.01, 1.0, "%.2f");
+                movChange |= ImGui::SliderFloat("Frequency", &config->movUniform.windFrequency, 0.01, 2.0, "%.2f");
+                if (movChange)
+                {
+                    computeManager->updateMovSettingsUniorm();
+                }
             }
-            ImGui::End();
 
-
-            ImGui::Begin("Blade material settings");
-            bool bladeChange = false;
-            bladeChange |= ImGui::ColorEdit3("Smaller blades Color", &config->bladeUniform.smallerBladeCol.r, 0);
-            bladeChange |= ImGui::ColorEdit3("Taller blades Color", &config->bladeUniform.tallerBladeCol.r, 0);
-            bladeChange |= ImGui::ColorEdit3("Specular Color", &config->bladeUniform.specularCol.r, 0);
-            bladeChange |= ImGui::SliderFloat("Ambient", &config->bladeUniform.ambientStrength, 0.0, 1.0, "%.2f");
-            bladeChange |= ImGui::SliderFloat("Diffuse", &config->bladeUniform.diffuseStrength, 0.0, 1.0, "%.2f");
-            bladeChange |= ImGui::SliderFloat("Wrap value", &config->bladeUniform.wrapValue, 0.0, 1.0, "%.2f");
-            bladeChange |= ImGui::SliderFloat("Specular", &config->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
-            if (bladeChange)
+            if (ImGui::CollapsingHeader("Blade material", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                renderer->updateBladeUniforms();
+                bool bladeChange = false;
+                bladeChange |= ImGui::ColorEdit3("Smaller blades Color", &config->bladeUniform.smallerBladeCol.r, 0);
+                bladeChange |= ImGui::ColorEdit3("Taller blades Color", &config->bladeUniform.tallerBladeCol.r, 0);
+                bladeChange |= ImGui::ColorEdit3("Specular Color", &config->bladeUniform.specularCol.r, 0);
+                bladeChange |= ImGui::SliderFloat("Ambient", &config->bladeUniform.ambientStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Diffuse", &config->bladeUniform.diffuseStrength, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Wrap value", &config->bladeUniform.wrapValue, 0.0, 1.0, "%.2f");
+                bladeChange |= ImGui::SliderFloat("Specular", &config->bladeUniform.specularStrength, 0.0, 0.3, "%.3f");
+                bladeChange |= ImGui::SliderFloat("Use shadows", &config->bladeUniform.shadows, 0.0, 1.0, "%1.f");
+                if (bladeChange)
+                {
+                    renderer->updateBladeUniforms();
+                }
             }
-            ImGui::End();
-
-            ImGui::Begin("Light settings");
-            ImGui::SliderFloat3("Sun direction", &config->lightUniform.sunDir.r, -1.0, 1.0, "%.1f");
-            ImGui::ColorEdit3("Sun color", &config->lightUniform.sunCol.r, 0);
-            ImGui::ColorEdit3("Sky up color", &config->lightUniform.skyUpCol.r, 0);
-            ImGui::ColorEdit3("Sky ground color", &config->lightUniform.skyGroundCol.r, 0);
-            bool shadowChange = false;
-            shadowChange |= ImGui::SliderFloat("Ray max distance", &config->shadowUniform.ray_max_distance, 0.0, 2.0, "%.3f");
-            shadowChange |= ImGui::SliderFloat("Thickness", &config->shadowUniform.thickness, 0.0, 0.1, "%.5f");
-            shadowChange |= ImGui::SliderFloat("Nax delta from original depth", &config->shadowUniform.max_delta_from_original_depth, 0.0, 0.01, "%.5f");
-            shadowChange |= ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->shadowUniform.max_steps), 0, 32);
-            if (shadowChange)
+            if (ImGui::CollapsingHeader("Light settings", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                renderer->updateShadowUniforms();
+                ImGui::SliderFloat3("Sun direction", &config->lightUniform.sunDir.r, -1.0, 1.0, "%.1f");
+                ImGui::ColorEdit3("Sun color", &config->lightUniform.sunCol.r, 0);
+                ImGui::ColorEdit3("Sky up color", &config->lightUniform.skyUpCol.r, 0);
+                ImGui::ColorEdit3("Sky ground color", &config->lightUniform.skyGroundCol.r, 0);
+            }
+            if (ImGui::CollapsingHeader("Screen space shadows", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                bool shadowChange = false;
+                shadowChange |= ImGui::SliderFloat("Ray max distance", &config->shadowUniform.ray_max_distance, 0.0,
+                                                   2.0, "%.3f");
+                shadowChange |= ImGui::SliderFloat("Thickness", &config->shadowUniform.thickness, 0.0, 0.1, "%.5f");
+                shadowChange |= ImGui::SliderFloat("Nax delta from original depth",
+                                                   &config->shadowUniform.max_delta_from_original_depth, 0.0, 0.01,
+                                                   "%.5f");
+                shadowChange |= ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->shadowUniform.max_steps), 0,
+                                                 32);
+                if (shadowChange)
+                {
+                    renderer->updateShadowUniforms();
+                }
             }
             ImGui::End();
         }
@@ -238,13 +252,14 @@ namespace grass
         computeManager->computeMovement(time);
         updateGUI();
 
-        PhongMaterial testMat{loadTexture("../assets/portal_color.png")};
-        auto testCubeGeo = MeshGeomoetry("../assets/portal.obj");
-        auto testCubeMesh = Mesh(testCubeGeo, testMat);
-        testCubeMesh.model = glm::translate(testCubeMesh.model, glm::vec3{0.61, 0.21, 0.5});
-        testCubeMesh.model = glm::scale(testCubeMesh.model, glm::vec3{0.3});
-        std::vector<Mesh> scene = {testCubeMesh};
+        // Little preview scene
+        PhongMaterial portalCol{loadTexture("../assets/portal_color.png")};
+        auto portalGeo = MeshGeomoetry("../assets/portal.obj");
+        auto portalMesh = Mesh(portalGeo, portalCol);
+        portalMesh.model = glm::translate(portalMesh.model, glm::vec3{0.61, 0.12, 0.5});
+        portalMesh.model = glm::scale(portalMesh.model, glm::vec3{0.3});
 
+        const auto scene = {portalMesh};
 
         while (!glfwWindowShouldClose(window))
         {
@@ -256,8 +271,8 @@ namespace grass
 
             computeManager->computeMovement(time);
             renderer->render(scene, camera, time, frameNumber);
-
             updateGUI();
+
             frameNumber++;
         }
     }
@@ -265,6 +280,7 @@ namespace grass
 
     void Engine::cleanup()
     {
+        delete [] keysArePressed;
         ImGui_ImplGlfw_Shutdown();
         ImGui_ImplWGPU_Shutdown();
         glfwDestroyWindow(window);

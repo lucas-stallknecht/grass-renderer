@@ -481,6 +481,12 @@ namespace grass
     }
 
 
+    void Renderer::toggleGUI()
+    {
+        showGui = !showGui;
+    }
+
+
     void Renderer::drawSky(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView)
     {
         wgpu::RenderPassColorAttachment fullScreenPassColorAttachment = {
@@ -627,7 +633,9 @@ namespace grass
         drawSky(encoder, targetView);
         drawGrass(encoder, targetView);
         drawScene(encoder, targetView, scene);
-        drawGUI(encoder, targetView);
+
+        if(showGui)
+            drawGUI(encoder, targetView);
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {
             .label = "Rendering operations command buffer"

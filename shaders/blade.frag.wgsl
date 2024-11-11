@@ -45,6 +45,7 @@ fn fragment_main(
     miaou = miaou * 0.5 + 0.5;
     miaou.y = 1.0 - miaou.y;
     var shadow = textureSample(shadowTex, texSampler, miaou).r;
+    shadow = mix(1.0, shadow, settings.useShadows);
 
     var AO = mix(vec3f(0.2), vec3f(1.0), in.AOValue);
 

@@ -19,6 +19,7 @@ namespace grass
         ~Renderer() = default;
         void init(const wgpu::Buffer& computeBuffer);
         void render(const std::vector<Mesh>& scene, const Camera& camera, float time, uint32_t frameNumber);
+        void toggleGUI();
         void updateBladeUniforms();
         void updateShadowUniforms();
 
@@ -38,6 +39,7 @@ namespace grass
         void drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
 
         std::shared_ptr<GlobalConfig> config;
+        bool showGui = true;
         GPUContext* ctx = nullptr;
         wgpu::Extent2D size;
         wgpu::TextureView depthView;
