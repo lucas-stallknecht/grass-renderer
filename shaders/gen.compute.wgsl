@@ -101,7 +101,6 @@ struct GenSettings {
     sizeNoiseAmplitude: f32
 };
 
-
 @group(0) @binding(0) var<storage, read_write> bladePositions: array<Blade>;
 @group(1) @binding(0) var<uniform> genSettings: GenSettings;
 
@@ -129,8 +128,9 @@ fn main(
     let n = (valueNoise2(pos.xz * vec2f(genSettings.density)) - 0.5) * genSettings.maxNoisePositionOffset;
     pos.x += n.x;
     pos.z += n.y;
+    // lazy heightMap simulation
     let h =  0.75 * simplexNoise2(pos.xz * 0.075 + vec2f(10.5, 89.0)) +
-    0.25 * simplexNoise2(pos.xz * 0.3 + vec2f(10.5, 89.0));
+             0.25 * simplexNoise2(pos.xz * 0.3 + vec2f(10.5, 89.0));
     pos.y = h;
 
     var randomYSizeAddition = 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 0.25)
@@ -138,14 +138,13 @@ fn main(
                             + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 4.0);
     // Normalizing simplex noise
     randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
-    let ySize = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
+    let height = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
 
     let randValue = rand11(f32(global_invocation_index));
     var blade: Blade;
     blade.c0 = pos;
-    blade.height = ySize;
+    blade.height = height;
     blade.relativeHeight = randomYSizeAddition;
-    // This might change with clumps !
     blade.facingDirection = vec3f(cos(randValue * radians(720.0)), 0.0, sin(randValue * radians(720.0)));
     blade.idHash = randValue;
 

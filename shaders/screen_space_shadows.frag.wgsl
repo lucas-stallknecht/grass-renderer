@@ -10,6 +10,8 @@ struct SSSUniform {
 @group(1) @binding(1) var<uniform> s: SSSUniform;
 @group(1) @binding(2) var shadowTex: texture_storage_2d<rgba8unorm, write>;
 
+const OCCLUSION_STRENGTH = 0.2;
+
 
 fn isSaturated(p: vec2f) -> bool {
     return p.x >= -1.0 && p.x <= 1.0 && p.y >= -1.0 && p.y <= 1.0;
@@ -24,7 +26,7 @@ fn getDepthValue(uv: vec2f, dims: vec2u) -> f32 {
     return textureLoad(depthTex, intCoords, 0);
 }
 
-fn InterleavedGradientNoise(uv: vec2f, frameId: u32) -> f32{
+fn interleavedGradientNoise(uv: vec2f, frameId: u32) -> f32{
 	let tc = uv + f32(frameId)  * (vec2f(47, 17) * 0.695f);
     var magic = vec3f( 0.06711056f, 0.00583715f, 52.9829189f );
     return fract(magic.z * fract(dot(tc, magic.xy)));
@@ -47,7 +49,7 @@ fn fragment_main(
 
     var ro = viewPos.xyz;
     var rd = normalize(global.cam.view * vec4f(global.light.sunDir, 0.0)).xyz;
-    var ditherOffset = InterleavedGradientNoise(uvToTexCoords(in.texCoord, dims), global.frameNumber) * 2.0f - 1.0f;
+    var ditherOffset = interleavedGradientNoise(uvToTexCoords(in.texCoord, dims), global.frameNumber) * 2.0f - 1.0f;
     var rayStep = rd * step_length;
     ro += rayStep * ditherOffset;
 
@@ -70,7 +72,7 @@ fn fragment_main(
 
                 if (canCameraSeeRay)
                 {
-                    occlusion = 0.2;
+                    occlusion = OCCLUSION_STRENGTH;
                     break;
                 }
             }

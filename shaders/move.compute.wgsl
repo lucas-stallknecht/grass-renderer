@@ -1,17 +1,17 @@
+// Sphercial collisions :
+// https://www.cg.tuwien.ac.at/research/publications/2016/JAHRMANN-2016-IGR/JAHRMANN-2016-IGR-thesis.pdf
+// https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf
+
 struct MovSettings {
     wind: vec4f,
     windFrequency: f32,
 };
 
-// Sphercial collisions
-// https://www.cg.tuwien.ac.at/research/publications/2016/JAHRMANN-2016-IGR/JAHRMANN-2016-IGR-thesis.pdf
-// https://www.cg.tuwien.ac.at/research/publications/2017/JAHRMANN-2017-RRTG/JAHRMANN-2017-RRTG-draft.pdf
-
 @group(0) @binding(0) var<storage, read_write> bladePositions: array<Blade>;
 @group(1) @binding(0) var<uniform> movSettings: MovSettings;
 @group(1) @binding(1) var<uniform> time: f32;
 
-const up = vec3f(0.0, 1.0, 0.0);
+
 // Spheres are just placed by hand for now
 const nSpheres: u32 = 3;
 const spheres = array<vec4f, nSpheres>(
@@ -65,6 +65,12 @@ fn calcSphereTranslation(p: vec3f, c: vec3f, r: f32) -> vec3f {
     return min(dist - r, 0.0) * (c - p) / dist;
 }
 
+fn calcC2(c0: vec3f, c1: vec3f, height: f32) -> vec3f {
+    var tiltProjectionLength = length(c1 - c0 - UP * dot(c1 - c0, UP));
+    //                      more tilted blades should bend more
+    return c0 + height * mix(0.25, 0.9, tiltProjectionLength / height) * UP;
+}
+
 @compute
 @workgroup_size(1, 1, 1)
 fn main(
@@ -82,45 +88,41 @@ fn main(
         return;
     }
 
-    let c0 = bladePositions[global_invocation_index].c0;
-    let height = bladePositions[global_invocation_index].height;
-    let idHash = bladePositions[global_invocation_index].idHash;
-    let facingDir = bladePositions[global_invocation_index].facingDirection;
-    let collisionStrength = bladePositions[global_invocation_index].collisionStrength;
+    let blade = bladePositions[global_invocation_index];
 
-    var f = time * movSettings.windFrequency * movSettings.wind.xyz;
+    var noisePhase = time * movSettings.windFrequency * movSettings.wind.xyz;
     var windNoise = 0.5 + 0.5 * (
-        simplexNoise2((c0).xz * 0.1 - f.xz ) * 0.5 +
-        simplexNoise2((c0).xz * 0.5 - f.xz ) * 0.1 +
-        simplexNoise2((c0).xz * 3.5 - f.xz) * 0.4
+        simplexNoise2((blade.c0).xz * 0.1 - noisePhase.xz) * 0.5 +
+        simplexNoise2((blade.c0).xz * 0.5 - noisePhase.xz) * 0.1 +
+        simplexNoise2((blade.c0).xz * 3.5 - noisePhase.xz) * 0.4
     );
-    var varianceFactor = mix(0.85, 1.0, idHash);
+    var varianceFactor = mix(0.85, 1.0, blade.idHash);
 
     //                                               taller blades will sway more distance
-    var tiltVec = movSettings.wind.xyz * windNoise * (movSettings.wind.w * height) * varianceFactor;
+    var tiltDist = movSettings.wind.xyz * windNoise * (movSettings.wind.w * blade.height) * varianceFactor;
 
-    var c1 = c0 + max(1.0 - collisionStrength, 0.0) * tiltVec + height * up;
-    // more tilted blades should bend more
-    var lproj = length(c1 - c0 - up * dot(c1 - c0, up));
-    var c2 = c0 + height * mix(0.25, 0.9, lproj/height) * up;
+    // Calculate bezier control points
+    var c1 = blade.c0 + max(1.0 - blade.collisionStrength, 0.0) * tiltDist + blade.height * UP;
+    var c2 = calcC2(blade.c0, c1, blade.height);
 
     var newCollisionStrength = 0.0;
-    // Spheres collision
+    // Experimental : Spheres collision
     for (var i: u32 = 0u; i < nSpheres; i = i + 1u) {
        let sphere = spheres[i];
-       let d = distance(c0, sphere.xyz);
-           if (d < height + sphere.w) {
-               var m = 0.25 * c0 + 0.5 * c2 + 0.25 * c1;
+       let d = distance(blade.c0, sphere.xyz);
+           if (d < blade.height + sphere.w) {
+                // middle point
+               var m = 0.25 * blade.c0 + 0.5 * c2 + 0.25 * c1;
                var t = calcSphereTranslation(c1, sphere.xyz, sphere.w) + 4.0 * calcSphereTranslation(m, sphere.xyz, sphere.w);
                c1 += t;
+               // If a blade is in collision, it has less chance to be affected by wind next step
                newCollisionStrength = max(length(t)/sphere.w, newCollisionStrength);
            }
     }
 
-    // Ground collision
-    c1 -= up * min(dot(up, c1 - c0), 0.0);
-    lproj = length(c1 - c0 - up * dot(c1 - c0, up));
-    c2 = c0 + height * mix(0.25, 0.9, lproj/height) * up;
+    // State checking
+    // Groudn collision : c1 -= UP * min(dot(UP, c1 - blade.c0), 0.0);
+    c2 = calcC2(blade.c0, c1, blade.height);
 
     bladePositions[global_invocation_index].c1 = c1;
     bladePositions[global_invocation_index].c2 = c2;

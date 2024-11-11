@@ -9,7 +9,7 @@
 #include <fstream>
 #include <sstream>
 
-#define COMMON_STRUCTS_PATH "../shaders/common_structs.wgsl"
+#define COMMON_PATH "../shaders/common.wgsl"
 
 
 namespace grass
@@ -48,15 +48,15 @@ namespace grass
 
     inline wgpu::ShaderModule getShaderModule(const wgpu::Device& device, const std::string& shaderPath,
                                               const std::string& moduleLabel,
-                                              bool includeCommonStructs = true)
+                                              bool includeCommon = true)
     {
         std::string shaderCode;
         parseShaderFile(shaderPath, shaderCode);
 
-        if (includeCommonStructs)
+        if (includeCommon)
         {
             std::string structsCode;
-            parseShaderFile(COMMON_STRUCTS_PATH, structsCode);
+            parseShaderFile(COMMON_PATH, structsCode);
             shaderCode.insert(0, structsCode);
         }
 

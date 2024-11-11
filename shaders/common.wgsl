@@ -1,3 +1,12 @@
+// TODO change constant up vector with terrain normal
+const UP = vec3f(0.0, 1.0, 0.0);
+const FOG_EXT = 2.0;
+const FOG_DENSITY = 0.09;
+
+fn exponentialFog(distance: f32) -> f32 {
+    return pow(2.0, -pow(FOG_DENSITY * distance, FOG_EXT));
+}
+
 struct Blade {
     c0: vec3f, // root
     idHash: f32,
@@ -47,13 +56,13 @@ struct BladeSettings {
 struct BladeVertexOut {
     @builtin(position) position : vec4f,
     @location(0) worldPosition: vec3f,
-    @location(1) texCoord: vec2f,
-    @location(2) normal: vec3f,
-    @location(3) relativeHeight: f32,
-    @location(4) AOValue: f32,
-    @location(5) tangent: vec3f,
-    @location(6) bitangent: vec3f,
-    @location(7) uvPos: vec4f,
+    @location(1) screenPosition: vec4f, // used to sample SSS
+    @location(2) texCoord: vec2f,
+    @location(3) normal: vec3f,
+    @location(4) relativeHeight: f32,
+    @location(5) AOValue: f32,
+    @location(6) tangent: vec3f,
+    @location(7) bitangent: vec3f,
 }
 
 struct VertexOut {

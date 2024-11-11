@@ -16,6 +16,10 @@ fn ease(x: f32, n: f32)-> f32 {
     return pow(x, n);
 }
 
+const SWAY_Y = 0.2;
+const SWAY_FREQ = 2.3;
+const VERTEX_SHIFTING_AMOUNT = 0.3;
+
 
 @vertex
 fn vertex_main(
@@ -28,11 +32,10 @@ fn vertex_main(
     let blade = bladePositions[instanceIndex];
 
     var c1 = blade.c1;
-    let bobbingAmplitude = 0.2 * distance(blade.c0.xz, blade.c1.xz) / blade.height;
-    let bobbingPhase = blade.idHash * pos.y;
-    let bobbingFreq = 2.3;
+    let swayAmplitude = SWAY_Y * distance(blade.c0.xz, blade.c1.xz) / blade.height;
+    let swayPhase = blade.idHash * pos.y;
     // Bobbing up and down gives a better swaying effect than just tilting uniformally
-    c1 += pos.y * bobbingAmplitude * sin(bobbingFreq * (global.time + bobbingPhase));
+    c1 += pos.y * swayAmplitude * sin(SWAY_FREQ * (global.time + swayPhase));
 
     // Conservation of length
     let L0 = distance(blade.c0, c1);
@@ -52,7 +55,7 @@ fn vertex_main(
     var bitangent = normalize(dBezier(pos.y, blade.c0, c1, blade.c2));
     var modifiedNormal = normalize(cross(bitangent, tangent));
 
-    // Font and back faces have different vectors
+    // Front and back faces have different vectors
     let vertToCamVector = normalize(global.cam.position - worldPos.xyz);
     let inversion = sign(dot(modifiedNormal, vertToCamVector));
     modifiedNormal *= inversion;
@@ -61,20 +64,21 @@ fn vertex_main(
     var viewDotTangent = dot(tangent.xz, vertToCamVector.xz);
     var viewSpaceShiftFactor = smoothstep(0.4, 1.0, abs(viewDotTangent));
     // We used to shift the vert in view space but this caused weird z-fighting. We do it in world space now.
-    var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * 0.3;
+    var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * VERTEX_SHIFTING_AMOUNT;
      worldPos.x += thicknessAmount * modifiedNormal.x;
      worldPos.z += thicknessAmount * modifiedNormal.z;
-    var mvPos = global.cam.view * worldPos;
+    var viewPos = global.cam.view * worldPos;
+    var screenPos = global.cam.proj * viewPos;
 
     var output: BladeVertexOut;
-    output.position = global.cam.proj * mvPos;
+    output.position = screenPos;
     output.worldPosition = worldPos.xyz / worldPos.w;
+    output.screenPosition = screenPos;
     output.texCoord = texCoord;
     output.relativeHeight = blade.relativeHeight;
     output.AOValue = smoothstep(0.0, 1.0, pos.y);
     output.normal = modifiedNormal;
     output.tangent = tangent;
     output.bitangent = bitangent;
-    output.uvPos = global.cam.proj * mvPos;
     return output;
 }

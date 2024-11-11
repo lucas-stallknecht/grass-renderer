@@ -18,7 +18,7 @@ fn fragment_main(
 
     let worldViewDir = (global.cam.invView * vec4f(viewDirection, 0.0)).xyz;
 
-    let upFactor = easeOutExpo(max(dot(worldViewDir, vec3f(0.0, 1.0, 0.0)), 0.0));
+    let upFactor = easeOutExpo(max(dot(worldViewDir, UP), 0.0));
     let color = mix(global.light.skyGroundCol, global.light.skyUpCol, upFactor);
 
     return vec4f(color, 1.0);
