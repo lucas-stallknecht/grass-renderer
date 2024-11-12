@@ -107,35 +107,29 @@ struct GenSettings {
 @compute
 @workgroup_size(1, 1, 1)
 fn main(
-    @builtin(workgroup_id) workgroup_id : vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
     @builtin(local_invocation_index) local_invocation_index: u32,
     @builtin(num_workgroups) num_workgroups: vec3<u32>
 ) {
     // Check if the index is within bounds
-    let workgroup_index =
-         workgroup_id.x +
-         workgroup_id.y * num_workgroups.x +
-         workgroup_id.z * num_workgroups.x * num_workgroups.y;
+    let workgroup_index = workgroup_id.x + workgroup_id.y * num_workgroups.x + workgroup_id.z * num_workgroups.x * num_workgroups.y;
     let global_invocation_index = workgroup_index + local_invocation_index;
-    if (global_invocation_index >= num_workgroups.x * num_workgroups.y) {
+    if global_invocation_index >= num_workgroups.x * num_workgroups.y {
         return;
     }
 
     // Chunk
     var pos: vec3f = vec3f(-genSettings.sideLength + f32(workgroup_id.x) / genSettings.density,
-                            0.0,
-                           -genSettings.sideLength + f32(workgroup_id.y) / genSettings.density);
+        0.0,
+        -genSettings.sideLength + f32(workgroup_id.y) / genSettings.density);
     let n = (valueNoise2(pos.xz * vec2f(genSettings.density)) - 0.5) * genSettings.maxNoisePositionOffset;
     pos.x += n.x;
     pos.z += n.y;
     // lazy heightMap simulation
-    let h =  0.75 * simplexNoise2(pos.xz * 0.075 + vec2f(10.5, 89.0)) +
-             0.25 * simplexNoise2(pos.xz * 0.3 + vec2f(10.5, 89.0));
+    let h = 0.75 * simplexNoise2(pos.xz * 0.075 + vec2f(10.5, 89.0)) + 0.25 * simplexNoise2(pos.xz * 0.3 + vec2f(10.5, 89.0));
     pos.y = h;
 
-    var randomYSizeAddition = 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 0.25)
-                            + 0.5 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0)
-                            + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 4.0);
+    var randomYSizeAddition = 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 0.25) + 0.5 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 2.0) + 0.25 * simplexNoise2(pos.xz * genSettings.sizeNoiseFrequency * 4.0);
     // Normalizing simplex noise
     randomYSizeAddition = randomYSizeAddition * 0.5 + 0.5;
     let height = genSettings.bladeHeight + randomYSizeAddition * genSettings.sizeNoiseAmplitude;
@@ -149,5 +143,4 @@ fn main(
     blade.idHash = randValue;
 
     bladePositions[global_invocation_index] = blade;
-
 }

@@ -1,7 +1,9 @@
 #pragma once
+
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <memory>
+
 #include "Camera.h"
 #include "GPUContext.h"
 #include "GlobalConfig.h"
@@ -17,25 +19,26 @@ namespace grass
     public:
         Renderer(std::shared_ptr<GlobalConfig> config, uint16_t width, uint16_t height);
         ~Renderer() = default;
-        void init(const wgpu::Buffer& computeBuffer);
+        bool init(const wgpu::Buffer& computeBuffer);
         void render(const std::vector<Mesh>& scene, const Camera& camera, float time, uint32_t frameNumber);
         void toggleGUI();
         void updateBladeUniforms();
         void updateShadowUniforms();
 
     private:
-        void initGlobalResources();
-        void initBladeResources();
-        void initShadowResources();
-        void createDepthTextureView();
-        void initSkyPipeline();
-        void initGrassPipeline(const wgpu::Buffer& computeBuffer);
-        void initPhongPipeline();
-        void initShadowPipeline();
+        bool initGlobalResources();
+        bool initBladeResources();
+        bool initShadowResources();
+        bool createDepthTextureView();
+        bool initSkyPipeline();
+        bool initGrassPipeline(const wgpu::Buffer& computeBuffer);
+        bool initPhongPipeline();
+        bool initShadowPipeline();
         void updateGlobalUniforms(const Camera& camera, float time, uint32_t frameNumber);
         void drawSky(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
         void drawGrass(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
-        void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView, const std::vector<Mesh>& scene);
+        void drawScene(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView,
+                       const std::vector<Mesh>& scene);
         void drawGUI(const wgpu::CommandEncoder& encoder, const wgpu::TextureView& targetView);
 
         std::shared_ptr<GlobalConfig> config;

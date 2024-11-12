@@ -1,13 +1,16 @@
 #include "Engine.h"
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include "Utils.h"
-#include <cassert>
-#include <iostream>
 #include <glm/glm.hpp>
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
+
+#include <cassert>
+
 #include "Mesh.h"
+#include "Utils.h"
+
 
 namespace grass
 {
@@ -15,7 +18,7 @@ namespace grass
     Engine& Engine::getInstance() { return *loadedEngine; }
 
 
-    void Engine::init()
+    bool Engine::init()
     {
         assert(loadedEngine == nullptr);
         loadedEngine = this;
@@ -23,27 +26,37 @@ namespace grass
         keysArePressed = new bool[512]{false};
         config = std::make_shared<GlobalConfig>();
 
-        initWindow();
+        if (!initWindow()) return false;
         GPUContext::getInstance(window)->configSurface(WIDTH, HEIGHT);
 
         computeManager = std::make_unique<ComputeManager>(config);
-        wgpu::Buffer computeBuffer = computeManager->init();
-
         renderer = std::make_unique<Renderer>(config, WIDTH, HEIGHT);
-        renderer->init(computeBuffer);
 
-        initGUI();
+        wgpu::Buffer computeBuffer = computeManager->init();
+        if (computeBuffer == nullptr) return false;
+        if (!renderer->init(computeBuffer)) return false;
+        if (!initGUI()) return false;
+
+        return true;
     }
 
 
-    void Engine::initWindow()
+    bool Engine::initWindow()
     {
-        assert(glfwInit() && "Could not initialize GLFW!");
+        if (!glfwInit())
+        {
+            std::cerr << "Could not initialize GLFW!" << std::endl;
+            return false;
+        }
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         window = glfwCreateWindow(WIDTH, HEIGHT, "Grass renderer", nullptr, nullptr);
-        assert(window && "Could not get window from GLFW!");
+        if (window == nullptr)
+        {
+            std::cerr << "Could not get window from GLFW!" << std::endl;
+            return false;
+        }
 
         glfwSetWindowUserPointer(window, this);
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -65,14 +78,21 @@ namespace grass
         glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetKeyCallback(window, keyCallback);
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
+
+        return true;
     }
 
 
-    void Engine::initGUI()
+    bool Engine::initGUI()
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         io = &ImGui::GetIO();
+        if (io == nullptr)
+        {
+            std::cerr << "Could not get imgui IO!" << std::endl;
+            return false;
+        }
         ImGui::StyleColorsDark();
 
         ImGui_ImplGlfw_InitForOther(window, true);
@@ -81,6 +101,8 @@ namespace grass
         info.NumFramesInFlight = 3;
         info.RenderTargetFormat = static_cast<WGPUTextureFormat>(GPUContext::getInstance()->getSurfaceFormat());
         ImGui_ImplWGPU_Init(&info);
+
+        return true;
     }
 
 
@@ -226,10 +248,10 @@ namespace grass
             {
                 bool shadowChange = false;
                 shadowChange |= ImGui::SliderFloat("Ray max distance", &config->shadowUniform.ray_max_distance, 0.0,
-                                                   2.0, "%.3f");
-                shadowChange |= ImGui::SliderFloat("Thickness", &config->shadowUniform.thickness, 0.0, 0.1, "%.5f");
+                                                   3.0, "%.3f");
+                shadowChange |= ImGui::SliderFloat("Thickness", &config->shadowUniform.thickness, 0.0, 0.5, "%.5f");
                 shadowChange |= ImGui::SliderFloat("Nax delta from original depth",
-                                                   &config->shadowUniform.max_delta_from_original_depth, 0.0, 0.01,
+                                                   &config->shadowUniform.max_delta_from_original_depth, 0.0, 0.03,
                                                    "%.5f");
                 shadowChange |= ImGui::SliderInt("Steps", reinterpret_cast<int*>(&config->shadowUniform.max_steps), 0,
                                                  32);

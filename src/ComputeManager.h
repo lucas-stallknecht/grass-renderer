@@ -31,16 +31,17 @@ namespace grass
         void computeMovement(float time);
 
     private:
-        void createSharedBuffer();
-        wgpu::BindGroupLayout createSharedBindGroup();
-        void createUniformBuffers();
-        void initGenPipeline(const wgpu::BindGroupLayout& sharedLayout);
-        void initMovPipeline(const wgpu::BindGroupLayout& sharedLayout);
+        bool createSharedBuffer();
+        bool createSharedBindGroup();
+        bool createUniformBuffers();
+        bool initGenPipeline();
+        bool initMovPipeline();
 
         std::shared_ptr<GlobalConfig> config;
         GPUContext* ctx = nullptr;
 
         wgpu::Buffer computeBuffer;
+        wgpu::BindGroupLayout sharedLayout;
         wgpu::BindGroup sharedBindGroup;
 
         wgpu::ComputePipeline genPipeline;

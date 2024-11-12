@@ -2,17 +2,15 @@
 @group(1) @binding(1) var<storage, read> bladePositions: array<Blade>;
 
 
-fn bezier(t: f32, c0: vec3f,  c1: vec3f,  c2: vec3f) -> vec3f {
-    return  c2 +
-    pow(1.0 - t, 2.0) * (c0 - c2) +
-    pow(t, 2.0) * (c1 - c2);
+fn bezier(t: f32, c0: vec3f, c1: vec3f, c2: vec3f) -> vec3f {
+    return  c2 + pow(1.0 - t, 2.0) * (c0 - c2) + pow(t, 2.0) * (c1 - c2);
 }
 
-fn dBezier(t: f32, c0: vec3f,  c1: vec3f,  c2: vec3f) -> vec3f {
+fn dBezier(t: f32, c0: vec3f, c1: vec3f, c2: vec3f) -> vec3f {
     return  2.0 * (1.0 - t) * (c0 - c2) - 2.0 * t * (c1 - c2);
 }
 
-fn ease(x: f32, n: f32)-> f32 {
+fn ease(x: f32, n: f32) -> f32 {
     return pow(x, n);
 }
 
@@ -27,8 +25,7 @@ fn vertex_main(
     @location(0) pos: vec3f,
     @location(1) normal: vec3f,
     @location(2) texCoord: vec2f
-    ) -> BladeVertexOut
-{
+) -> BladeVertexOut {
     let blade = bladePositions[instanceIndex];
 
     var c1 = blade.c1;
@@ -65,8 +62,8 @@ fn vertex_main(
     var viewSpaceShiftFactor = smoothstep(0.4, 1.0, abs(viewDotTangent));
     // We used to shift the vert in view space but this caused weird z-fighting. We do it in world space now.
     var thicknessAmount = viewSpaceShiftFactor * sign(-viewDotTangent) * pos.z * VERTEX_SHIFTING_AMOUNT;
-     worldPos.x += thicknessAmount * modifiedNormal.x;
-     worldPos.z += thicknessAmount * modifiedNormal.z;
+    worldPos.x += thicknessAmount * modifiedNormal.x;
+    worldPos.z += thicknessAmount * modifiedNormal.z;
     var viewPos = global.cam.view * worldPos;
     var screenPos = global.cam.proj * viewPos;
 

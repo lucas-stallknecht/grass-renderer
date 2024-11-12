@@ -9,15 +9,13 @@ const SPEC_EXP = 64.0;
 const AO_MIN = 0.2;
 const AO_MAX = 1.0;
 
-
 @fragment
 fn fragment_main(
     @builtin(front_facing) front_facing: bool,
     in: BladeVertexOut
-    ) -> @location(0) vec4f
-{
+) -> @location(0) vec4f {
     var uv = in.texCoord;
-    if(front_facing) {
+    if front_facing {
         uv.x = 1.0 - uv.x;
     }
     // Convert texture tangent space to world space

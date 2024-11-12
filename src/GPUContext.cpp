@@ -5,7 +5,8 @@
 
 GPUContext* GPUContext::ctx = nullptr;
 
-GPUContext::GPUContext(GLFWwindow* window){
+GPUContext::GPUContext(GLFWwindow* window)
+{
     wgpu::InstanceDescriptor instanceDesc;
     instanceDesc.features.timedWaitAnyEnable = true;
     instance = wgpu::CreateInstance(&instanceDesc);
@@ -113,7 +114,8 @@ GPUContext* GPUContext::getInstance(GLFWwindow* window)
 {
     if (ctx == nullptr)
     {
-        if (!window) {
+        if (!window)
+        {
             throw std::runtime_error("GPUContext not initialized yet. Please call with a valid GLFWwindow.");
         }
         ctx = new GPUContext(window);

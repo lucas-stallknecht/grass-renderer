@@ -74,28 +74,21 @@ fn calcC2(c0: vec3f, c1: vec3f, height: f32) -> vec3f {
 @compute
 @workgroup_size(1, 1, 1)
 fn main(
-    @builtin(workgroup_id) workgroup_id : vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
     @builtin(local_invocation_index) local_invocation_index: u32,
     @builtin(num_workgroups) num_workgroups: vec3<u32>
 ) {
     // Check if the index is within bounds
-    let workgroup_index =
-         workgroup_id.x +
-         workgroup_id.y * num_workgroups.x +
-         workgroup_id.z * num_workgroups.x * num_workgroups.y;
+    let workgroup_index = workgroup_id.x + workgroup_id.y * num_workgroups.x + workgroup_id.z * num_workgroups.x * num_workgroups.y;
     let global_invocation_index = workgroup_index + local_invocation_index;
-    if (global_invocation_index >= num_workgroups.x * num_workgroups.y) {
+    if global_invocation_index >= num_workgroups.x * num_workgroups.y {
         return;
     }
 
     let blade = bladePositions[global_invocation_index];
 
     var noisePhase = time * movSettings.windFrequency * movSettings.wind.xyz;
-    var windNoise = 0.5 + 0.5 * (
-        simplexNoise2((blade.c0).xz * 0.1 - noisePhase.xz) * 0.5 +
-        simplexNoise2((blade.c0).xz * 0.5 - noisePhase.xz) * 0.1 +
-        simplexNoise2((blade.c0).xz * 3.5 - noisePhase.xz) * 0.4
-    );
+    var windNoise = 0.5 + 0.5 * (simplexNoise2((blade.c0).xz * 0.1 - noisePhase.xz) * 0.5 + simplexNoise2((blade.c0).xz * 0.5 - noisePhase.xz) * 0.1 + simplexNoise2((blade.c0).xz * 3.5 - noisePhase.xz) * 0.4);
     var varianceFactor = mix(0.85, 1.0, blade.idHash);
 
     //                                               taller blades will sway more distance
@@ -108,16 +101,16 @@ fn main(
     var newCollisionStrength = 0.0;
     // Experimental : Spheres collision
     for (var i: u32 = 0u; i < nSpheres; i = i + 1u) {
-       let sphere = spheres[i];
-       let d = distance(blade.c0, sphere.xyz);
-           if (d < blade.height + sphere.w) {
+        let sphere = spheres[i];
+        let d = distance(blade.c0, sphere.xyz);
+        if d < blade.height + sphere.w {
                 // middle point
-               var m = 0.25 * blade.c0 + 0.5 * c2 + 0.25 * c1;
-               var t = calcSphereTranslation(c1, sphere.xyz, sphere.w) + 4.0 * calcSphereTranslation(m, sphere.xyz, sphere.w);
-               c1 += t;
+            var m = 0.25 * blade.c0 + 0.5 * c2 + 0.25 * c1;
+            var t = calcSphereTranslation(c1, sphere.xyz, sphere.w) + 4.0 * calcSphereTranslation(m, sphere.xyz, sphere.w);
+            c1 += t;
                // If a blade is in collision, it has less chance to be affected by wind next step
-               newCollisionStrength = max(length(t)/sphere.w, newCollisionStrength);
-           }
+            newCollisionStrength = max(length(t) / sphere.w, newCollisionStrength);
+        }
     }
 
     // State checking
@@ -127,5 +120,4 @@ fn main(
     bladePositions[global_invocation_index].c1 = c1;
     bladePositions[global_invocation_index].c2 = c2;
     bladePositions[global_invocation_index].collisionStrength = newCollisionStrength;
-
 }

@@ -54,7 +54,7 @@ struct BladeSettings {
 }
 
 struct BladeVertexOut {
-    @builtin(position) position : vec4f,
+    @builtin(position) position: vec4f,
     @location(0) worldPosition: vec3f,
     @location(1) screenPosition: vec4f, // used to sample SSS
     @location(2) texCoord: vec2f,
@@ -66,7 +66,7 @@ struct BladeVertexOut {
 }
 
 struct VertexOut {
-    @builtin(position) position : vec4f,
+    @builtin(position) position: vec4f,
     @location(0) worldPosition: vec3f,
     @location(1) texCoord: vec2f,
     @location(2) normal: vec3f,

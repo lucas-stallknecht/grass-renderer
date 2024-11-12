@@ -4,8 +4,8 @@
 #include "layouts.h"
 #include "Utils.h"
 
-namespace grass {
-
+namespace grass
+{
     MeshGeomoetry::MeshGeomoetry(const std::string& meshFilePath)
     {
         createVertexBuffer(meshFilePath);
@@ -38,11 +38,12 @@ namespace grass {
         pass.Draw(vertexCount, instanceCount, 0, 0);
     }
 
-   Mesh::Mesh(MeshGeomoetry geometry, PhongMaterial material) : geometry(std::move(geometry)), material(std::move(material))
-   {
+    Mesh::Mesh(MeshGeomoetry geometry, PhongMaterial material) : geometry(std::move(geometry)),
+                                                                 material(std::move(material))
+    {
         createBuffer();
         createBindGroup();
-   }
+    }
 
     void Mesh::createBuffer()
     {
@@ -86,9 +87,4 @@ namespace grass {
         );
         geometry.draw(pass, instanceCount);
     }
-
-
-
-
-
 } // grass

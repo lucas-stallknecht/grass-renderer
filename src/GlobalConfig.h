@@ -1,10 +1,13 @@
 #pragma once
+
 #include "uniforms.h"
 
-namespace grass {
-
-    struct GlobalConfig {
+namespace grass
+{
+    struct GlobalConfig
+    {
         GlobalConfig() { calculateTotal(); }
+
         void calculateTotal()
         {
             bladesPerSide = static_cast<size_t>(grassUniform.sideLength * grassUniform.density * 2);

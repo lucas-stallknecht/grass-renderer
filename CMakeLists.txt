@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(GrassRenderer VERSION 0.9.0)
+project(GrassRenderer VERSION 1.0)
 
 set(USE_VULKAN ON)
 set(USE_D3D12 OFF)

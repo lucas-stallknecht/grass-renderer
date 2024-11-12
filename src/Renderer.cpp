@@ -1,11 +1,11 @@
 #include "Renderer.h"
-#include "Utils.h"
 
 #include <backends/imgui_impl_wgpu.h>
 #include <backends/imgui_impl_glfw.h>
-#include "layouts.h"
 
-#include <iostream>
+#include "layouts.h"
+#include "Utils.h"
+
 
 namespace grass
 {
@@ -16,20 +16,22 @@ namespace grass
     }
 
 
-    void Renderer::init(const wgpu::Buffer& computeBuffer)
+    bool Renderer::init(const wgpu::Buffer& computeBuffer)
     {
-        initGlobalResources();
-        initBladeResources();
-        initShadowResources();
-        createDepthTextureView();
-        initSkyPipeline();
-        initGrassPipeline(computeBuffer);
-        initPhongPipeline();
-        initShadowPipeline();
+        if (!initGlobalResources()) return false;
+        if (!initBladeResources()) return false;
+        if (!initShadowResources()) return false;
+        if (!createDepthTextureView()) return false;
+        if (!initSkyPipeline()) return false;
+        if (!initGrassPipeline(computeBuffer)) return false;
+        if (!initPhongPipeline()) return false;
+        if (!initShadowPipeline()) return false;
+
+        return true;
     }
 
 
-    void Renderer::initGlobalResources()
+    bool Renderer::initGlobalResources()
     {
         wgpu::BufferDescriptor globalUniformBufferDesc = {
             .label = "Global uniform buffer",
@@ -66,10 +68,12 @@ namespace grass
             .entries = &globalEntry[0]
         };
         globalBindGroup = ctx->getDevice().CreateBindGroup(&globalBindGroupDesc);
+
+        return globalUniformBuffer != nullptr && globalTextureSampler != nullptr && globalBindGroup != nullptr;
     }
 
 
-    void Renderer::initBladeResources()
+    bool Renderer::initBladeResources()
     {
         bladeNormalTexture = loadTexture("../assets/blade_normal.png");
 
@@ -81,10 +85,12 @@ namespace grass
         };
         bladeUniformBuffer = ctx->getDevice().CreateBuffer(&bladeUniformBufferDesc);
         ctx->getQueue().WriteBuffer(bladeUniformBuffer, 0, &config->bladeUniform, bladeUniformBuffer.GetSize());
+
+        return bladeUniformBuffer != nullptr;
     }
 
 
-    void Renderer::initShadowResources()
+    bool Renderer::initShadowResources()
     {
         wgpu::BufferDescriptor shadowUniformBufferDesc = {
             .label = "Shadow uniform buffer",
@@ -104,10 +110,12 @@ namespace grass
             .sampleCount = 1,
         };
         shadowTexture = ctx->getDevice().CreateTexture(&shadowTextureDesc);
+
+        return shadowUniformBuffer != nullptr && shadowTexture != nullptr;
     }
 
 
-    void Renderer::initSkyPipeline()
+    bool Renderer::initSkyPipeline()
     {
         wgpu::ShaderModule skyVert = getShaderModule(ctx->getDevice(), "../shaders/full_screen_quad.vert.wgsl",
                                                      "Sky Vertex shader");
@@ -141,16 +149,17 @@ namespace grass
         skyPipelineDesc.fragment = &fragmentState;
 
         skyPipeline = ctx->getDevice().CreateRenderPipeline(&skyPipelineDesc);
+
+        return skyPipeline != nullptr;
     }
 
 
-    void Renderer::initGrassPipeline(const wgpu::Buffer& computeBuffer)
+    bool Renderer::initGrassPipeline(const wgpu::Buffer& computeBuffer)
     {
         wgpu::ShaderModule grassVert = getShaderModule(ctx->getDevice(), "../shaders/blade.vert.wgsl",
                                                        "Grass vertex shader");
         wgpu::ShaderModule fragVert = getShaderModule(ctx->getDevice(), "../shaders/blade.frag.wgsl",
                                                       "Grass vertex shader");
-
 
         wgpu::BindGroupLayoutEntry grassLayoutEntry[4] = {
             {
@@ -268,10 +277,12 @@ namespace grass
             .entries = &bladeUniformEntry[0]
         };
         bladeUniformBindGroup = ctx->getDevice().CreateBindGroup(&storageBindGroupDesc);
+
+        return grassPipeline != nullptr && bladeUniformBindGroup != nullptr;
     }
 
 
-    void Renderer::initPhongPipeline()
+    bool Renderer::initPhongPipeline()
     {
         wgpu::ShaderModule phongVert = getShaderModule(ctx->getDevice(), "../shaders/phong.vert.wgsl",
                                                        "Phong vertex shader");
@@ -310,10 +321,12 @@ namespace grass
         phongPipelineDesc.multisample.count = MULTI_SAMPLE_COUNT;
 
         phongPipeline = ctx->getDevice().CreateRenderPipeline(&phongPipelineDesc);
+
+        return phongPipeline != nullptr;
     }
 
 
-    void Renderer::initShadowPipeline()
+    bool Renderer::initShadowPipeline()
     {
         wgpu::ShaderModule shadowVert = getShaderModule(ctx->getDevice(), "../shaders/full_screen_quad.vert.wgsl",
                                                         "ScreenSpaceShadow vertex shader");
@@ -418,10 +431,12 @@ namespace grass
             .entries = &shadowUniformEntry[0]
         };
         shadowUniformBindGroup = ctx->getDevice().CreateBindGroup(&bindGroupDesc);
+
+        return shadowPipeline != nullptr && shadowUniformBindGroup != nullptr;
     }
 
 
-    void Renderer::createDepthTextureView()
+    bool Renderer::createDepthTextureView()
     {
         wgpu::TextureDescriptor depthTextureDesc = {
             .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc |
@@ -444,6 +459,8 @@ namespace grass
             .aspect = wgpu::TextureAspect::DepthOnly,
         };
         depthView = depthTexture.CreateView(&depthViewDesc);
+
+        return depthView != nullptr;
     }
 
 
@@ -634,7 +651,7 @@ namespace grass
         drawGrass(encoder, targetView);
         drawScene(encoder, targetView, scene);
 
-        if(showGui)
+        if (showGui)
             drawGUI(encoder, targetView);
 
         wgpu::CommandBufferDescriptor cmdBufferDescriptor = {

@@ -1,7 +1,9 @@
 /cmake-build-debug/
 /cmake-build-release/
+/CMakeFiles
 /build-debug/
 /build-release/
 /build/
 /.idea/
 /third_party/dawn/
+CMakeCache.txt

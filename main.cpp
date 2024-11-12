@@ -3,8 +3,10 @@
 int main()
 {
     grass::Engine engine;
-    engine.init();
+    if (!engine.init()) return 1;
+
     engine.run();
+
     engine.cleanup();
     return 0;
 }

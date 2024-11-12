@@ -12,8 +12,7 @@ const SPEC_EXP = 64.0;
 fn fragment_main(
     @builtin(front_facing) front_facing: bool,
     in: VertexOut
-    ) -> @location(0) vec4f
-{
+) -> @location(0) vec4f {
     var albedo = textureSample(diffuseTex, texSampler, in.texCoord).rgb;
 
     var ambientCol = AMBIENT_STRENGTH * mix(

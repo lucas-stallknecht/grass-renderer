@@ -4,8 +4,7 @@ fn vertex_main(
     @location(0) pos: vec3f,
     @location(1) normal: vec3f,
     @location(2) texCoord: vec2f
-    ) -> VertexOut
-{
+) -> VertexOut {
     var output: VertexOut;
     output.position = vec4(pos, 1.0);
     output.texCoord = texCoord;

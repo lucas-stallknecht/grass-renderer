@@ -8,8 +8,7 @@ fn easeOutExpo(x: f32) -> f32 {
 fn fragment_main(
     @builtin(front_facing) front_facing: bool,
     in: VertexOut
-    ) -> @location(0) vec4f
-{
+) -> @location(0) vec4f {
     // normalized device coordinates (NDC) position
     let ndcPos = vec4f(in.texCoord * 2.0 - vec2f(1.0), 1.0, 1.0);
 
